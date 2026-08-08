@@ -7,6 +7,7 @@ from src.text_generation import generate_text
 from src.image_generation import generate_image
 from config import create_client
 from src.summarization import summarize, STYLES, DEFAULT_STYLE
+from src.question_answering import answer_question
 from src.metrics import summarise_metrics
 
 # Validate and process the command-line provider argument.
@@ -61,12 +62,78 @@ if sl.button("Generate Image") :
 
 #Question Answering
 sl.header("Question Answering")
-question = sl.text_input("Enter your question")
+sl.caption(
+    "Ask questions about your study material. Answers are grounded in the material "
+    "you provide - if it does not cover the question, the assistant says so rather "
+    "than guessing."
+)
 
-if sl.button("Generate Answer") :
-    answer = "This is my AI-generated answer"
-    sl.write("### Answer")
-    sl.write(answer)
+qa_uploaded = sl.file_uploader(
+    "Upload the study material (optional)", type=["txt", "md"], key="qa_upload"
+)
+qa_default = ""
+if qa_uploaded is not None:
+    qa_default = qa_uploaded.read().decode("utf-8", errors="ignore")
+
+qa_context = sl.text_area(
+    "Study material to answer from:",
+    value=qa_default,
+    height=180,
+    placeholder="Paste the lecture notes or textbook section the question is about...",
+    key="qa_context",
+)
+question = sl.text_input("Enter your question", key="qa_question")
+
+qa_backend_label = sl.radio(
+    "Model",
+    [
+        "HF DistilBERT SQuAD, local (SLM, extractive)",
+        "HF Qwen2.5-7B, Inference API (LLM, generative)",
+        "OpenAI gpt-4o-mini (LLM, generative)",
+    ],
+    key="qa_backend",
+    help="The extractive model can only copy spans out of your material, so it "
+         "cannot hallucinate. The generative models read better but must be held "
+         "to the material by the prompt.",
+)
+qa_backend = (
+    "hf_local" if qa_backend_label.startswith("HF DistilBERT")
+    else "hf_api" if qa_backend_label.startswith("HF Qwen")
+    else "openai"
+)
+
+if sl.button("Generate Answer"):
+    try:
+        with sl.spinner("Finding the answer..."):
+            qa_result = answer_question(question, qa_context, backend=qa_backend)
+    except ValueError as exc:
+        sl.warning(str(exc))
+    except Exception as exc:
+        sl.error(f"Question answering failed: {exc}")
+    else:
+        sl.subheader("Answer")
+        if qa_result["answered"]:
+            sl.write(qa_result["answer"])
+            if qa_result["evidence"]:
+                sl.caption(f"From the material: “{qa_result['evidence']}”")
+        else:
+            sl.info(qa_result["answer"])
+
+        sl.markdown("**Metrics for this run**")
+        q1, q2, q3, q4 = sl.columns(4)
+        q1.metric("Latency", f"{qa_result['latency_sec']} s")
+        q2.metric("Tokens", qa_result["total_tokens"])
+        q3.metric("Cost", f"${qa_result['cost_usd']:.5f}")
+        q4.metric(
+            "Confidence" if qa_result["confidence"] is not None else "Groundedness",
+            qa_result["confidence"] if qa_result["confidence"] is not None
+            else qa_result["groundedness"],
+        )
+        sl.caption(
+            f"Model: {qa_result['model']} · "
+            f"{'extractive' if qa_result['extractive'] else 'generative'} · "
+            f"groundedness {qa_result['groundedness']}"
+        )
 
 
 #Text Summarisation

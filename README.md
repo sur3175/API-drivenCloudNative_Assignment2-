@@ -11,7 +11,7 @@ Designed and developed an interactive API-driven AI application combining NLP an
 |---|----------|----------|--------|-------|--------|
 | 1 | Text generation | NLP | `src/text_generation.py` | gpt-4o-mini | Done |
 | 2 | Text summarisation | NLP | `src/summarization.py` | DistilBART local (SLM) / Qwen2.5-7B via HF API (LLM) | Done |
-| 3 | Question answering | NLP | `src/question_answering.py` | — | Pending |
+| 3 | Question answering | NLP | `src/question_answering.py` | DistilBERT SQuAD (SLM) / Qwen2.5-7B via HF API (LLM) | Done |
 | 4 | Image generation | CV | `src/image_generation.py` | gpt-image-1 | Done |
 | 5 | Image classification | CV | `src/image_classification.py` | — | Pending |
 
@@ -105,6 +105,41 @@ private but CPU-bound, the API model is fast but spends credits and leaves the
 machine.
 
 `Data/sample_lecture_notes.txt` is a ready-made input for the demo.
+
+## Question answering
+
+Answers student questions **from the study material they provide**, not from the
+model's own knowledge. When the material doesn't cover the question, the answer is
+`The study material does not cover this.` rather than a confident guess — which is
+the behaviour a study assistant needs.
+
+Two backends, deliberately different in kind:
+
+| Backend | Model | How it answers |
+|---|---|---|
+| `hf_local` (default) | `distilbert-base-cased-distilled-squad` | **Extractive** — selects a span out of your material, so it cannot hallucinate. Cites the sentence it came from. Free, offline, ~0.8 s. |
+| `hf_api` | `Qwen/Qwen2.5-7B-Instruct` | **Generative** — reads far better and handles answers spread across several sentences, but is only held to the material by the prompt. ~1 s. |
+
+```python
+from src.question_answering import answer_question
+
+r = answer_question("Why report latency as percentiles?", notes, backend="hf_api")
+print(r["answer"], r["groundedness"], r["latency_sec"])
+```
+
+**Two quality metrics, one per backend kind.** Extractive answers carry the model's
+span `confidence`; generative answers carry `groundedness` — the fraction of the
+answer's content words that appear in the source. A generative answer that drifts
+into the model's own knowledge scores lower, which makes the drift visible in the
+metrics rather than invisible in the prose. In testing, "What is an error budget?"
+scored 0.59 on the API backend because the model added correct but unsourced detail.
+
+**Known limitation of the extractive backend.** DistilBERT picks one span per
+question, and on a long document it sometimes picks from the wrong section — asked
+for the CNCF's four practices it returned "unreliable, elastic infrastructure" with
+0.89 confidence, an answer from the summary paragraph. High confidence is not
+correctness. The generative backend answered the same question correctly. This is a
+real SLM-vs-LLM trade-off and is worth demonstrating rather than hiding.
 
 ## LLMOps metrics
 
