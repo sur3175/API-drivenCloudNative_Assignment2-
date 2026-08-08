@@ -11,6 +11,7 @@ from config import create_client
 from src.summarization import summarize, STYLES, DEFAULT_STYLE
 from src.question_answering import answer_question
 from src.practice_questions import generate_questions, is_available as pq_available
+from src.image_classification import is_implemented as ic_implemented
 from src.metrics import summarise_metrics
 
 # Validate and process the command-line provider argument.
@@ -299,6 +300,17 @@ if sl.button("Summarise"):
                     "sentences were re-laid-out into this shape. Use the Inference "
                     "API backend for model-generated styling.]"
                 )
+
+
+#Image Classification - not implemented yet, section reserved
+sl.header("Image Classification")
+if not ic_implemented():
+    sl.info(
+        "Not built yet. The module skeleton and intended design are in "
+        "`src/image_classification.py`; the planned model is "
+        "`google/vit-base-patch16-224`, local and API backends, wired to the same "
+        "metrics layer as the other sub-tasks."
+    )
 
 
 #Practice Question Generator - the fine-tuned model (assignment requirement 8)

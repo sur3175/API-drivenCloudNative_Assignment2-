@@ -20,3 +20,6 @@ models/
 .idea/
 .vscode/
 .DS_Store
+
+# Generated submission document - rebuild with scripts/build_submission_doc.py
+submission/
