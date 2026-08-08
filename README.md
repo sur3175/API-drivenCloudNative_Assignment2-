@@ -77,7 +77,7 @@ under the summary.
 ```python
 from src.summarization import summarize
 
-result = summarize(open("Data/sample_lecture_notes.txt").read(),
+result = summarize(open("data/sample_lecture_notes.txt").read(),
                    style="Revision bullet points", target_words=150)
 print(result["summary"], result["latency_sec"], result["rougeL"])
 ```
@@ -105,7 +105,7 @@ The 18x latency gap is the other half of the trade: the local model is free and
 private but CPU-bound, the API model is fast but spends credits and leaves the
 machine.
 
-`Data/sample_lecture_notes.txt` is a ready-made input for the demo.
+`data/sample_lecture_notes.txt` is a ready-made input for the demo.
 
 ## Question answering
 
@@ -142,10 +142,70 @@ for the CNCF's four practices it returned "unreliable, elastic infrastructure" w
 correctness. The generative backend answered the same question correctly. This is a
 real SLM-vs-LLM trade-off and is worth demonstrating rather than hiding.
 
+## Fine-tuning (assignment requirement 8)
+
+`scripts/finetune_qa.py` fine-tunes **t5-small** on **SciQ** — 11,679 crowdsourced
+science exam questions, each with a support paragraph. School science material, so
+the same Education domain as the rest of the application.
+
+```bash
+python scripts/finetune_qa.py                 # train + evaluate
+python scripts/finetune_qa.py --evaluate-only # re-run the evaluation
+```
+
+**Task: practice question generation.** `answer + passage → exam question`. The
+fine-tuned model is served by `src/practice_questions.py` and demoed in the app's
+Practice Question Generator section.
+
+### Measured before/after
+
+1,600 training examples, 1 epoch, batch 8, CPU, 56 min. Evaluated on 150 held-out
+SciQ test items:
+
+| | Exact match | Token F1 | ROUGE-L | Copy rate |
+|---|---|---|---|---|
+| base t5-small | 0.0% | 41.78% | 38.47% | 99.31% |
+| fine-tuned | **13.33%** | **62.20%** | **56.91%** | **90.75%** |
+| change | +13.33 | +20.42 | +18.44 | −8.56 |
+
+**Copy rate is the metric that shows what actually changed.** Base t5-small has never
+seen the `generate question:` prefix, so it falls back to echoing the passage —
+99.3% of its output words come straight from the input, and it scores 0% exact match
+because it never produces a question at all. Fine-tuning teaches it the task:
+
+| | Output |
+|---|---|
+| reference | *What term in biotechnology means a genetically exact copy of an organism?* |
+| base | *human cloning is one of the inevitable outcomes of modern biotechnology* |
+| fine-tuned | *What is a genetically exact copy of an organism developed using techniques associated with biotechnology?* |
+
+### Why this task, and not question answering
+
+The obvious choice was fine-tuning for grounded QA. **Measuring the baseline first
+killed that idea**: base t5-small already scores 70.0% EM / 81.2% F1 on SciQ QA,
+because T5's original pre-training mixture includes SQuAD in exactly the
+`question: … context: …` format. A pilot fine-tune came out *worse* than base. There
+was nothing to demonstrate.
+
+That run is kept as `--task qa` and its numbers in `data/finetuning_results_qa.json`,
+because "the base model was already good enough" is a legitimate finding.
+
+### Honest limitations
+
+- **13% exact match is low in absolute terms.** It is a 60M-parameter model, 1,600
+  examples, one epoch, on CPU. The direction and size of the change is the result,
+  not the absolute score.
+- **It is fine-tuned on science.** On `data/sample_biology_notes.txt` it produces
+  usable questions; on the cloud-architecture notes it is visibly worse, because that
+  is out of its training domain. Demo it on the biology notes.
+- **It still degrades on generic terms.** Given a vague answer term it reverts to
+  copying a sentence. `looks_like_question()` filters those out and tries the next
+  candidate, so roughly 4 in 5 requested questions come back usable.
+
 ## LLMOps metrics
 
 Every model call in the application is wrapped by `src/metrics.py`, which appends one
-row per invocation to `Data/metrics_log.csv` and surfaces the aggregates in the
+row per invocation to `data/metrics_log.csv` and surfaces the aggregates in the
 "LLMOps metrics dashboard" expander in the app.
 
 | Metric | Meaning |

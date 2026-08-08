@@ -1,0 +1,101 @@
+{
+  "task": "qgen",
+  "dataset": "allenai/sciq",
+  "base_model": "t5-small",
+  "train_examples": 1600,
+  "epochs": 1,
+  "train_minutes": 56.4,
+  "device": "cpu",
+  "before": {
+    "model": "t5-small (base)",
+    "examples": 150,
+    "exact_match": 0.0,
+    "token_f1": 41.78,
+    "rouge_l": 38.47,
+    "copy_rate": 99.31,
+    "avg_latency_sec": 0.6,
+    "samples": [
+      {
+        "expected": "Compounds that are capable of accepting electrons, such as o 2 or f2, are called what?",
+        "predicted": "Compounds that are capable of donating electrons, such as sodium metal or cyclohexane (C6H12), are calledoxidants (or oxidizing agents) because they can oxidize other"
+      },
+      {
+        "expected": "What term in biotechnology means a genetically exact copy of an organism?",
+        "predicted": "human cloning is one of the inevitable outcomes of modern biotechnology"
+      },
+      {
+        "expected": "Vertebrata are characterized by the presence of what?",
+        "predicted": "the one that runs through the middle of this fish"
+      },
+      {
+        "expected": "What is the height above or below sea level called?",
+        "predicted": "Elevation is the height above or below sea level"
+      },
+      {
+        "expected": "Ice cores, varves and what else indicate the environmental conditions at the time of their creation?",
+        "predicted": "Tree rings, ice cores, and varves indicate the environmental conditions at the time they were made"
+      },
+      {
+        "expected": "What chemical signals in plants control different processes?",
+        "predicted": "plant hormones are chemical signals that control different processes in plants"
+      },
+      {
+        "expected": "Meiosis is part of the process of gametogenesis, which is the production of what?",
+        "predicted": "Gametogenesis"
+      },
+      {
+        "expected": "Which type of tree is dominant in temperate forests?",
+        "predicted": "Deciduous trees are the dominant plant in the temperate forest. (credit: Oliver Herold)."
+      }
+    ]
+  },
+  "after": {
+    "model": "t5-small (fine-tuned)",
+    "examples": 150,
+    "exact_match": 13.33,
+    "token_f1": 62.2,
+    "rouge_l": 56.91,
+    "copy_rate": 90.75,
+    "avg_latency_sec": 0.56,
+    "samples": [
+      {
+        "expected": "Compounds that are capable of accepting electrons, such as o 2 or f2, are called what?",
+        "predicted": "Compounds that are capable of accepting electrons, such as O 2 or F2, are called what?"
+      },
+      {
+        "expected": "What term in biotechnology means a genetically exact copy of an organism?",
+        "predicted": "What is a genetically exact copy of an organism developed using techniques associated with biotechnology?"
+      },
+      {
+        "expected": "Vertebrata are characterized by the presence of what?",
+        "predicted": "Vertebrata are characterized by the presence of what?"
+      },
+      {
+        "expected": "What is the height above or below sea level called?",
+        "predicted": "What is the height above or below sea level?"
+      },
+      {
+        "expected": "Ice cores, varves and what else indicate the environmental conditions at the time of their creation?",
+        "predicted": "What do ice cores indicate the environmental conditions at the time they were made?"
+      },
+      {
+        "expected": "What chemical signals in plants control different processes?",
+        "predicted": "What are chemical signals that control different processes in plants?"
+      },
+      {
+        "expected": "Meiosis is part of the process of gametogenesis, which is the production of what?",
+        "predicted": "Gametogenesis, the production of what?"
+      },
+      {
+        "expected": "Which type of tree is dominant in temperate forests?",
+        "predicted": "What are the dominant plant in the temperate forest?"
+      }
+    ]
+  },
+  "delta": {
+    "exact_match": 13.33,
+    "token_f1": 20.42,
+    "rouge_l": 18.44,
+    "copy_rate": -8.56
+  }
+}

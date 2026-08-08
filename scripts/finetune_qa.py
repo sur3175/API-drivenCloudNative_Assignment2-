@@ -24,7 +24,7 @@ Two tasks are supported.
     Base t5-small already scores 70.0% EM / 81.2% F1 on this, since T5's original
     pre-training mixture includes SQuAD in exactly this format. There is almost no
     headroom, so fine-tuning here demonstrates very little. Measured, not assumed -
-    see Data/finetuning_results_qa.json.
+    see data/finetuning_results_qa.json.
 
 A plain PyTorch loop is used instead of Trainer: this box is CPU-only, the model is
 small, and the loop keeps the moving parts visible for the viva.
@@ -65,7 +65,7 @@ TASKS = {
         "target": lambda r: r["question"].strip(),
         "max_target_tokens": 48,
         "output_dir": MODELS_DIR / "t5-small-sciq-qgen",
-        "results": ROOT / "Data" / "finetuning_results.json",
+        "results": ROOT / "data" / "finetuning_results.json",
     },
     "qa": {
         "prompt": lambda r: (
@@ -74,7 +74,7 @@ TASKS = {
         "target": lambda r: r["correct_answer"].strip(),
         "max_target_tokens": 24,
         "output_dir": MODELS_DIR / "t5-small-sciq-qa",
-        "results": ROOT / "Data" / "finetuning_results_qa.json",
+        "results": ROOT / "data" / "finetuning_results_qa.json",
     },
 }
 

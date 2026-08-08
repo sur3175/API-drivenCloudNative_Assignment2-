@@ -1,7 +1,7 @@
 # Text Summarisation — screenshots
 
 Captured from the running app (`python -m streamlit run app.py -- hf`) at 2x scale
-against `Data/sample_lecture_notes.txt` (831 words), target length 150 words.
+against `data/sample_lecture_notes.txt` (831 words), target length 150 words.
 
 | File | Shows |
 |---|---|

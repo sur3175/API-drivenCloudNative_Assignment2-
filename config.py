@@ -6,8 +6,12 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from huggingface_hub import InferenceClient
 
-# Find project root: parent directory of src/
+# Find project root
 PROJECT_ROOT = Path(__file__).resolve().parent
+
+# Directory to store generated images
+DATA_DIR = PROJECT_ROOT / "data"
+DATA_DIR.mkdir(exist_ok=True)
 
 #Load .env from PROJECT_ROOT
 load_dotenv(PROJECT_ROOT/".env")
@@ -32,6 +36,6 @@ def create_client(provider:str):
         return InferenceClient(api_key=api_key)
     else:
         raise ValueError(
-            f"Unsupported provider '{provider}"
-            "Use 'openai' or 'hf'"
+            f"Unsupported provider '{provider}'. "
+            "Use 'openai' or 'hf'."
         )

@@ -101,6 +101,21 @@ def candidate_answers(context: str, count: int) -> list:
     return picked
 
 
+def looks_like_question(text: str) -> bool:
+    """Reject outputs that are not actually questions.
+
+    On terms the fine-tuned model handles poorly - usually generic words rather than
+    the specific science terms SciQ is built from - it falls back to its pre-training
+    behaviour and copies a declarative sentence out of the context. Those are filtered
+    out here and another candidate term is tried instead.
+    """
+    text = text.strip()
+    if "?" not in text:
+        return False
+    # A copied sentence with a question mark bolted on is still not a usable question.
+    return len(text.split()) <= 40
+
+
 def _generate_one(tokenizer, model, answer: str, context: str) -> str:
     import torch
 
@@ -136,16 +151,25 @@ def generate_questions(context: str, num_questions: int = 5, answers: list = Non
         )
 
     tokenizer, model = _load()
-    targets = answers or candidate_answers(context, num_questions)
+    targets = answers or candidate_answers(context, num_questions * 3)
     if not targets:
         raise ValueError("Could not find any terms in the material to ask about.")
 
     with track("practice_questions", MODEL_NAME) as run:
         questions = []
-        for answer in targets[:num_questions]:
+        seen = set()
+        # More candidate terms are tried than questions requested: generic terms often
+        # produce a question the model has already written for an earlier term, and a
+        # duplicate is worth skipping rather than showing twice.
+        for answer in targets:
+            if len(questions) >= num_questions:
+                break
             question = _generate_one(tokenizer, model, answer, context)
-            if question:
-                questions.append({"question": question, "answer": answer})
+            key = re.sub(r"[^a-z0-9 ]", "", question.lower()).strip()
+            if not looks_like_question(question) or key in seen:
+                continue
+            seen.add(key)
+            questions.append({"question": question, "answer": answer})
         run.set_usage(
             int(len(context.split()) * 1.4 * len(questions)),
             int(sum(len(q["question"].split()) for q in questions) * 1.4),

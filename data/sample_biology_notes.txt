@@ -1,0 +1,46 @@
+Biology Revision Notes: Cells, Respiration and Photosynthesis
+
+The cell is the basic unit of all living organisms. Prokaryotic cells, found in
+bacteria and archaea, have no nucleus and no membrane-bound organelles; their genetic
+material sits free in the cytoplasm in a region called the nucleoid. Eukaryotic cells,
+found in plants, animals, fungi and protists, keep their DNA inside a membrane-bound
+nucleus and contain specialised organelles.
+
+Mitochondria are the organelles responsible for aerobic respiration. They have a
+double membrane, and the inner membrane is folded into structures called cristae,
+which increase the surface area available for the reactions that produce ATP. ATP,
+adenosine triphosphate, is the molecule cells use to store and transfer chemical
+energy. Aerobic respiration converts glucose and oxygen into carbon dioxide and water,
+releasing roughly 38 molecules of ATP per molecule of glucose.
+
+When oxygen is scarce, cells switch to anaerobic respiration. In animal muscle this
+produces lactic acid and only two molecules of ATP per glucose. In yeast the same
+shortage produces ethanol and carbon dioxide, a process called fermentation, which is
+what makes bread rise and beer ferment.
+
+Chloroplasts carry out photosynthesis in plant cells and in algae. They contain the
+green pigment chlorophyll, which absorbs light energy, mostly in the red and blue
+parts of the spectrum, and reflects green light, which is why leaves look green.
+Photosynthesis uses light energy to convert carbon dioxide and water into glucose and
+oxygen. The reactions take place in two stages: the light-dependent reactions in the
+thylakoid membranes, and the light-independent reactions, also called the Calvin
+cycle, in the stroma.
+
+The rate of photosynthesis is affected by three limiting factors: light intensity,
+carbon dioxide concentration and temperature. A limiting factor is whichever of these
+is in shortest supply, because it alone caps the rate no matter how plentiful the
+others are. Temperature acts differently from the other two: raising it speeds the
+reactions only until the enzymes involved begin to denature, after which the rate
+falls sharply.
+
+Osmosis is the movement of water molecules from a dilute solution to a concentrated
+solution across a partially permeable membrane. Diffusion is the net movement of
+particles from a region of high concentration to a region of low concentration, and
+needs no energy. Active transport moves substances against the concentration gradient
+and therefore requires energy supplied by ATP.
+
+Enzymes are biological catalysts made of protein. They speed up reactions by lowering
+the activation energy required, and each enzyme has an active site whose shape is
+complementary to its specific substrate. Extremes of temperature or pH change the
+shape of the active site permanently, a change called denaturation, after which the
+substrate no longer fits and the enzyme stops working.

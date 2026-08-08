@@ -20,10 +20,11 @@ import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from math import ceil
-from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-METRICS_FILE = PROJECT_ROOT / "Data" / "metrics_log.csv"
+# config owns where data lives, and creates the directory on import.
+from config import DATA_DIR
+
+METRICS_FILE = DATA_DIR / "metrics_log.csv"
 
 FIELDNAMES = [
     "timestamp",
