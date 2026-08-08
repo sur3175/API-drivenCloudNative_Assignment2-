@@ -30,7 +30,12 @@ from src.metrics import track
 
 OPENAI_MODEL = "gpt-4o-mini"
 HF_LOCAL_MODEL = "sshleifer/distilbart-cnn-12-6"
-HF_API_MODEL = "Qwen/Qwen2.5-7B-Instruct"
+
+# Which model the Inference API backend calls. Overridable via HF_API_MODEL in .env,
+# because which models the HF router serves varies by account and changes over time -
+# if this one is unavailable, another instruction-tuned chat model can be dropped in
+# without touching the code. Resolved after the helpers below are defined.
+HF_API_MODEL_DEFAULT = "Qwen/Qwen2.5-7B-Instruct"
 
 # Words per chunk when a document has to be split. Comfortably inside the context
 # window of both backends while keeping enough context for a coherent summary.
@@ -209,15 +214,16 @@ def _summarize_openai(text: str, style: str, target_words: int, focus: str, run)
     return response.output_text.strip()
 
 
-def _hf_token() -> str:
-    """Read HF_TOKEN from the environment or .env.
+def _env(*names: str) -> str:
+    """Read the first of `names` that is set, from the environment or from .env.
 
     Deliberately not routed through config.py: that module raises when
     OPENAI_API_KEY is absent, and the Hugging Face backends must not depend on it.
     """
-    token = os.getenv("HF_TOKEN") or os.getenv("HF_API_KEY")
-    if token:
-        return token
+    for name in names:
+        value = os.getenv(name)
+        if value:
+            return value
     env_file = Path(__file__).resolve().parent.parent / ".env"
     if env_file.exists():
         for line in env_file.read_text(encoding="utf-8").splitlines():
@@ -225,9 +231,16 @@ def _hf_token() -> str:
             if line.startswith("#") or "=" not in line:
                 continue
             key, _, value = line.partition("=")
-            if key.strip() in ("HF_TOKEN", "HF_API_KEY"):
+            if key.strip() in names:
                 return value.strip().strip('"').strip("'")
     return ""
+
+
+def _hf_token() -> str:
+    return _env("HF_TOKEN", "HF_API_KEY")
+
+
+HF_API_MODEL = _env("HF_API_MODEL") or HF_API_MODEL_DEFAULT
 
 
 def _summarize_hf_api(text: str, style: str, target_words: int, focus: str, run) -> str:
