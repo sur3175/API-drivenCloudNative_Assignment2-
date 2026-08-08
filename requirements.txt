@@ -1,0 +1,9 @@
+# Core application
+streamlit>=1.40
+openai>=1.60
+python-dotenv>=1.0
+
+# Local SLM backend for the summarisation sub-task (optional but used in the
+# LLM vs SLM comparison). Skip these two if you only run the OpenAI backend.
+transformers>=4.44
+torch>=2.2
