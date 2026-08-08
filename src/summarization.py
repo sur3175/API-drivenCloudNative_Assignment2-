@@ -24,8 +24,11 @@
 import os
 import re
 from difflib import SequenceMatcher
-from pathlib import Path
 
+# Importing config runs its load_dotenv(), which is what puts the keys from .env
+# into os.environ for the token lookups below. create_client is safe to import at
+# module scope: it only raises when it is called without the key its provider needs.
+from config import create_client
 from src.metrics import track
 
 OPENAI_MODEL = "gpt-4o-mini"
@@ -209,11 +212,8 @@ def _build_prompt(text: str, style: str, target_words: int, focus: str = "") -> 
 
 def _summarize_openai(text: str, style: str, target_words: int, focus: str, run) -> str:
     """One OpenAI call. `run` is the metrics record for the enclosing invocation."""
-    # Built here rather than at module scope: create_client() raises if
-    # OPENAI_API_KEY is missing, and the Hugging Face backends must stay usable
-    # without an OpenAI key.
-    from config import create_client
-
+    # Built per call, not per import: this raises without OPENAI_API_KEY, and the
+    # Hugging Face backends must stay usable without an OpenAI key.
     client = create_client("openai")
     response = client.responses.create(
         model=OPENAI_MODEL,
@@ -229,33 +229,18 @@ def _summarize_openai(text: str, style: str, target_words: int, focus: str, run)
     return response.output_text.strip()
 
 
-def _env(*names: str) -> str:
-    """Read the first of `names` that is set, from the environment or from .env.
-
-    Deliberately not routed through config.py: that module raises when
-    OPENAI_API_KEY is absent, and the Hugging Face backends must not depend on it.
-    """
-    for name in names:
-        value = os.getenv(name)
-        if value:
-            return value
-    env_file = Path(__file__).resolve().parent.parent / ".env"
-    if env_file.exists():
-        for line in env_file.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line.startswith("#") or "=" not in line:
-                continue
-            key, _, value = line.partition("=")
-            if key.strip() in names:
-                return value.strip().strip('"').strip("'")
-    return ""
-
-
 def _hf_token() -> str:
-    return _env("HF_TOKEN", "HF_API_KEY")
+    """The Hugging Face token, read from the environment.
+
+    Importing config populates os.environ from .env via its load_dotenv() call, so
+    there is no second .env parser here. HF_API_KEY is the name config.create_client
+    uses; HF_TOKEN is accepted as an alias because it is what the huggingface_hub
+    tooling itself looks for.
+    """
+    return os.getenv("HF_API_KEY") or os.getenv("HF_TOKEN") or ""
 
 
-HF_API_MODEL = _env("HF_API_MODEL") or HF_API_MODEL_DEFAULT
+HF_API_MODEL = os.getenv("HF_API_MODEL") or HF_API_MODEL_DEFAULT
 
 
 def _summarize_hf_api(text: str, style: str, target_words: int, focus: str, run) -> str:
