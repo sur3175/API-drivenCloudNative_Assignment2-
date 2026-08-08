@@ -1,8 +1,7 @@
 # This section create image base dupon prompt
-from config import client
 import base64
 
-def generate_image(prompt: str):
+def generate_image(client, prompt: str):
     response = client.images.generate (
         model="gpt-image-1",
         prompt=prompt
