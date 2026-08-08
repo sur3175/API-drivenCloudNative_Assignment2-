@@ -10,7 +10,7 @@ Designed and developed an interactive API-driven AI application combining NLP an
 | # | Sub-task | Category | Module | Model | Status |
 |---|----------|----------|--------|-------|--------|
 | 1 | Text generation | NLP | `src/text_generation.py` | gpt-4o-mini | Done |
-| 2 | Text summarisation | NLP | `src/summarization.py` | gpt-4o-mini (LLM) / DistilBART (SLM) | Done |
+| 2 | Text summarisation | NLP | `src/summarization.py` | DistilBART local (SLM) / Qwen2.5-7B via HF API (LLM) | Done |
 | 3 | Question answering | NLP | `src/question_answering.py` | — | Pending |
 | 4 | Image generation | CV | `src/image_generation.py` | gpt-image-1 | Done |
 | 5 | Image classification | CV | `src/image_classification.py` | — | Pending |
@@ -22,11 +22,16 @@ condenses it for revision, answers questions on it, and works with diagrams.
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env      # then put your real OPENAI_API_KEY in .env
 streamlit run app.py
 ```
 
-`.env` is git-ignored — never commit the key.
+Summarisation works out of the box with **no API key and no credits** — its default
+backend is a Hugging Face model that downloads once (~1.2 GB) and then runs locally.
+
+For the other backends, copy `.env.example` to `.env` and add the keys you need:
+`HF_TOKEN` (free, from huggingface.co/settings/tokens) for the Hugging Face
+Inference API, and `OPENAI_API_KEY` for the OpenAI sub-tasks. `.env` is git-ignored
+— never commit a key.
 
 ## Text summarisation
 
@@ -37,11 +42,25 @@ Condenses lecture transcripts, textbook chapters and papers into revision materi
 - **Map-reduce for long documents** — input over `CHUNK_WORDS` (900) is split on
   paragraph/sentence boundaries, each chunk is summarised, then the partial summaries
   are summarised into the requested style.
-- **Two backends for the LLM-vs-SLM comparison** — `backend="openai"` uses
-  gpt-4o-mini via the OpenAI API; `backend="slm"` runs
-  `sshleifer/distilbart-cnn-12-6` locally through Hugging Face transformers, with no
-  API key and no per-token cost.
 - **Optional focus prompt** to steer the summary at one aspect of the material.
+
+### Backends
+
+Hugging Face is the primary provider, so the sub-task is not gated on OpenAI credits.
+
+| Backend | Model | Key needed | Cost | Styles |
+|---|---|---|---|---|
+| `hf_local` *(default)* | `sshleifer/distilbart-cnn-12-6` | none | free, runs offline | formatter |
+| `hf_api` | `Qwen/Qwen2.5-7B-Instruct` | free `HF_TOKEN` | free monthly credits | model |
+| `openai` | `gpt-4o-mini` | `OPENAI_API_KEY` | ~$0.0003 / run | model |
+
+The **styles** column is the honest caveat: DistilBART is a purpose-built abstractive
+summariser and cannot follow an instruction like "give me bullet points". On
+`hf_local`, non-default styles are produced by `apply_style()`, which splits the
+model's own summary on sentence boundaries and re-lays it out — it never adds or
+rewrites content. Only the instruction-tuned backends generate genuinely styled
+output. `result["style_applied_by"]` records which happened, and the app says so
+under the summary.
 
 ```python
 from src.summarization import summarize
@@ -50,6 +69,9 @@ result = summarize(open("Data/sample_lecture_notes.txt").read(),
                    style="Revision bullet points", target_words=150)
 print(result["summary"], result["latency_sec"], result["rougeL"])
 ```
+
+Measured on the sample notes (831 words, CPU, `hf_local`): 3 chunks, 40 s,
+ROUGE-L 0.28, 5.2x compression, $0.00.
 
 `Data/sample_lecture_notes.txt` is a ready-made input for the demo.
 

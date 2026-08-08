@@ -81,9 +81,14 @@ with col_left:
     style = sl.selectbox("Summary style", list(STYLES), index=list(STYLES).index(DEFAULT_STYLE))
     backend_label = sl.radio(
         "Model",
-        ["OpenAI gpt-4o-mini (LLM)", "DistilBART local (SLM)"],
-        help="The SLM runs on this machine with no API cost - useful for the "
-             "cost/latency comparison in the report.",
+        [
+            "HF DistilBART, local (SLM)",
+            "HF Qwen2.5-7B, Inference API (LLM)",
+            "OpenAI gpt-4o-mini (LLM)",
+        ],
+        help="The local Hugging Face model needs no key and consumes no credits. "
+             "The Inference API option needs a free HF_TOKEN and is the only "
+             "backend that can genuinely follow the output styles.",
     )
 with col_right:
     target_words = sl.slider("Approximate summary length (words)", 50, 400, 150, step=25)
@@ -92,7 +97,12 @@ with col_right:
         placeholder="e.g. only the evaluation methodology",
     )
 
-backend = "openai" if backend_label.startswith("OpenAI") else "slm"
+BACKEND_BY_LABEL = {
+    "HF DistilBART, local (SLM)": "hf_local",
+    "HF Qwen2.5-7B, Inference API (LLM)": "hf_api",
+    "OpenAI gpt-4o-mini (LLM)": "openai",
+}
+backend = BACKEND_BY_LABEL[backend_label]
 
 if sl.button("Summarise"):
     if not source_text.strip():
@@ -127,8 +137,15 @@ if sl.button("Summarise"):
             sl.caption(
                 f"Model: {result['model']} · chunks: {result['chunks']} · "
                 f"{result['source_words']} words in, {result['summary_words']} words out · "
-                f"ROUGE-1 {result['rouge1']} · ROUGE-L {result['rougeL']}"
+                f"ROUGE-1 {result['rouge1']} · ROUGE-L {result['rougeL']} · "
+                f"style applied by {result['style_applied_by']}"
             )
+            if result["style_applied_by"] == "formatter" and style != DEFAULT_STYLE:
+                sl.caption(
+                    ":grey[DistilBART cannot follow style instructions, so its own "
+                    "sentences were re-laid-out into this shape. Use the Inference "
+                    "API backend for model-generated styling.]"
+                )
 
 
 #LLMOps metrics dashboard - aggregates every model call logged to Data/metrics_log.csv

@@ -5,21 +5,32 @@
 # learner actually needs: a short abstract, revision bullet points, exam takeaways
 # or a plain-language explanation.
 #
-# Two model backends are supported so the report can compare an LLM against an SLM:
-#   * "openai" -> gpt-4o-mini via the OpenAI API (default, best quality)
-#   * "slm"    -> sshleifer/distilbart-cnn-12-6 run locally via Hugging Face
-#                 transformers (no API key, no per-token cost)
+# Hugging Face is the primary provider, so the project is not gated on OpenAI
+# credits. Three backends are available, giving the report a genuine SLM-vs-LLM
+# comparison across both cost models:
+#
+#   * "hf_local" (default) -> sshleifer/distilbart-cnn-12-6 downloaded once and run
+#                             locally through transformers. No API key, no credits,
+#                             works offline. A purpose-built abstractive SLM.
+#   * "hf_api"             -> an instruction-tuned LLM through the Hugging Face
+#                             Inference API. Needs a free HF_TOKEN; unlike the local
+#                             model it can follow the output-style instructions.
+#   * "openai"             -> gpt-4o-mini. Retained for the cost/quality comparison,
+#                             but nothing in this module requires it.
 #
 # Documents longer than one context-friendly chunk are handled with a map-reduce
 # strategy: summarise each chunk, then summarise the chunk summaries.
 
+import os
 import re
 from difflib import SequenceMatcher
+from pathlib import Path
 
 from src.metrics import track
 
 OPENAI_MODEL = "gpt-4o-mini"
-SLM_MODEL = "sshleifer/distilbart-cnn-12-6"
+HF_LOCAL_MODEL = "sshleifer/distilbart-cnn-12-6"
+HF_API_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 
 # Words per chunk when a document has to be split. Comfortably inside the context
 # window of both backends while keeping enough context for a coherent summary.
@@ -198,7 +209,59 @@ def _summarize_openai(text: str, style: str, target_words: int, focus: str, run)
     return response.output_text.strip()
 
 
-def _get_slm():
+def _hf_token() -> str:
+    """Read HF_TOKEN from the environment or .env.
+
+    Deliberately not routed through config.py: that module raises when
+    OPENAI_API_KEY is absent, and the Hugging Face backends must not depend on it.
+    """
+    token = os.getenv("HF_TOKEN") or os.getenv("HF_API_KEY")
+    if token:
+        return token
+    env_file = Path(__file__).resolve().parent.parent / ".env"
+    if env_file.exists():
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            if key.strip() in ("HF_TOKEN", "HF_API_KEY"):
+                return value.strip().strip('"').strip("'")
+    return ""
+
+
+def _summarize_hf_api(text: str, style: str, target_words: int, focus: str, run) -> str:
+    """Instruction-tuned LLM through the Hugging Face Inference API."""
+    from huggingface_hub import InferenceClient
+
+    token = _hf_token()
+    if not token:
+        raise RuntimeError(
+            "HF_TOKEN is not set. Create a free token at "
+            "https://huggingface.co/settings/tokens and add it to .env, or switch to "
+            "the 'hf_local' backend, which needs no token at all."
+        )
+
+    client = InferenceClient(api_key=token)
+    response = client.chat_completion(
+        model=HF_API_MODEL,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": _build_prompt(text, style, target_words, focus)},
+        ],
+        max_tokens=int(target_words * 2),
+        temperature=0.2,
+    )
+    usage = getattr(response, "usage", None)
+    if usage is not None:
+        run.set_usage(
+            getattr(usage, "prompt_tokens", 0),
+            getattr(usage, "completion_tokens", 0),
+        )
+    return response.choices[0].message.content.strip()
+
+
+def _get_hf_local():
     """Load the DistilBART tokenizer and model once, on first use.
 
     transformers 5.x removed the "summarization" pipeline task, so the seq2seq model
@@ -209,8 +272,8 @@ def _get_slm():
         import torch
         from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
-        tokenizer = AutoTokenizer.from_pretrained(SLM_MODEL)
-        model = AutoModelForSeq2SeqLM.from_pretrained(SLM_MODEL)
+        tokenizer = AutoTokenizer.from_pretrained(HF_LOCAL_MODEL)
+        model = AutoModelForSeq2SeqLM.from_pretrained(HF_LOCAL_MODEL)
         model.eval()
         if torch.cuda.is_available():
             model.to("cuda")
@@ -218,12 +281,13 @@ def _get_slm():
     return _slm_cache
 
 
-def _summarize_slm(text: str, style: str, target_words: int, focus: str, run) -> str:
+def _summarize_hf_local(text: str, style: str, target_words: int, focus: str, run) -> str:
     """Local SLM path. DistilBART is abstractive but does not follow style
-    instructions, so we only steer it with length and note the style in the log."""
+    instructions, so we only steer it with length; `apply_style` reshapes the
+    output afterwards."""
     import torch
 
-    tokenizer, model = _get_slm()
+    tokenizer, model = _get_hf_local()
     # DistilBART thinks in tokens; ~1.4 tokens per English word is a safe conversion.
     max_new = max(56, int(target_words * 1.4))
     min_new = max(24, int(max_new * 0.4))
@@ -250,13 +314,44 @@ def _summarize_slm(text: str, style: str, target_words: int, focus: str, run) ->
     return summary
 
 
+def apply_style(summary: str, style: str) -> str:
+    """Reshape a plain abstract into the requested layout.
+
+    Only used for backends that cannot follow a style instruction. This is
+    presentation-level formatting - the sentences are the model's own, split on
+    sentence boundaries and re-laid-out. It does not add or rewrite content, so a
+    bullet list from this path is genuinely less "styled" than one an
+    instruction-tuned model would produce. Stated plainly because the difference
+    matters when comparing backends in the report.
+    """
+    if style in ("Concise abstract", "Explain simply") or not summary:
+        return summary
+
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", summary) if s.strip()]
+    if len(sentences) < 2:
+        return summary
+
+    if style == "Exam key takeaways":
+        return "\n".join(f"{i}. {s}" for i, s in enumerate(sentences, start=1))
+    # "Revision bullet points" and "Study notes" both render as a bullet list.
+    return "\n".join(f"- {s}" for s in sentences)
+
+
 # `style_aware` records whether the backend can follow a style instruction. An
 # instruction-tuned LLM can; DistilBART cannot - it only ever produces a plain
-# abstract - which changes how the map-reduce step below is finished off.
+# abstract - which changes how the map-reduce step is finished off and whether
+# apply_style() has to step in afterwards.
 BACKENDS = {
+    "hf_local": {
+        "fn": _summarize_hf_local,
+        "model": HF_LOCAL_MODEL,
+        "style_aware": False,
+    },
+    "hf_api": {"fn": _summarize_hf_api, "model": HF_API_MODEL, "style_aware": True},
     "openai": {"fn": _summarize_openai, "model": OPENAI_MODEL, "style_aware": True},
-    "slm": {"fn": _summarize_slm, "model": SLM_MODEL, "style_aware": False},
 }
+
+DEFAULT_BACKEND = "hf_local"
 
 
 # --------------------------------------------------------------------------- #
@@ -267,7 +362,7 @@ def summarize(
     text: str,
     style: str = DEFAULT_STYLE,
     target_words: int = 150,
-    backend: str = "openai",
+    backend: str = DEFAULT_BACKEND,
     focus: str = "",
 ) -> dict:
     """Summarise `text` and return the summary together with its LLMOps metrics.
@@ -324,10 +419,17 @@ def summarize(
                 )
                 summary = summarize_fn(joined, style, target_words, focus, run)
 
+        styled = not spec["style_aware"] and style != DEFAULT_STYLE
+        if styled:
+            # The model could not honour the style, so lay its own sentences out
+            # in the requested shape instead.
+            summary = apply_style(summary, style)
+
         scores = rouge_scores(summary, text)
         run.quality = scores["rougeL"]
         run.extra = {
             "style": style,
+            "style_applied_by": "model" if spec["style_aware"] else "formatter",
             "backend": backend,
             "chunks": len(chunks),
             "source_words": word_count(text),
@@ -345,6 +447,7 @@ def summarize(
             "compression_ratio": compression_ratio(text, summary),
             "rouge1": scores["rouge1"],
             "rougeL": scores["rougeL"],
+            "style_applied_by": "model" if spec["style_aware"] else "formatter",
             "prompt_tokens": run.prompt_tokens,
             "completion_tokens": run.completion_tokens,
             "total_tokens": run.total_tokens,

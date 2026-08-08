@@ -41,13 +41,21 @@ FIELDNAMES = [
 ]
 
 # USD per 1,000,000 tokens. Source: OpenAI pricing page.
-# Locally-run Hugging Face models cost nothing per token, hence the 0.0 entries.
+#
+# The Hugging Face entries are 0.0, but for two different reasons. Locally-run
+# models genuinely cost nothing per token - they burn CPU/GPU time instead, which
+# the latency metric is what captures. Inference API models are billed against a
+# monthly credit allowance rather than per token, so there is no per-token price to
+# record; watch the call count and latency for those instead of the cost column.
 PRICING = {
     "gpt-4o-mini": {"input": 0.15, "output": 0.60},
     "gpt-4o": {"input": 2.50, "output": 10.00},
     "gpt-image-1": {"input": 5.00, "output": 0.00},
+    # Hugging Face - local
     "sshleifer/distilbart-cnn-12-6": {"input": 0.0, "output": 0.0},
     "facebook/bart-large-cnn": {"input": 0.0, "output": 0.0},
+    # Hugging Face - Inference API
+    "Qwen/Qwen2.5-7B-Instruct": {"input": 0.0, "output": 0.0},
 }
 
 
