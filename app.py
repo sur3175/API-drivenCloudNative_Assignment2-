@@ -19,6 +19,7 @@ if provider not in ("openai", "hf"):
     raise RuntimeError("Provider must be 'openai' or 'hf'")
 
 client = create_client(provider)
+sl.sidebar.write(f"Provider: {provider.upper()}")
 
 # Application title
 sl.title("AI Application - Education")
@@ -36,7 +37,7 @@ if sl.button("Generate Text"):
     else:
         with sl.spinner("Generating text..."):
         
-            result = generate_text(client, prompt)
+            result = generate_text(client, prompt, provider)
         sl.subheader("Generated Text")
         sl.write(result)
 
@@ -52,7 +53,7 @@ if sl.button("Generate Image") :
     else:
         with sl.spinner("Generating image..."):
         
-            result = generate_image(client, prompt)
+            result = generate_image(client, prompt, provider)
         sl.subheader("Generated Image")
         sl.write(result)
 
@@ -64,3 +65,5 @@ if sl.button("Generate Answer") :
     answer = "This is my AI-generated answer"
     sl.write("### Answer")
     sl.write(answer)
+
+    
