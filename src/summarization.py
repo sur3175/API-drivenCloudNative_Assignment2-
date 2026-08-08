@@ -37,9 +37,14 @@ HF_LOCAL_MODEL = "sshleifer/distilbart-cnn-12-6"
 # without touching the code. Resolved after the helpers below are defined.
 HF_API_MODEL_DEFAULT = "Qwen/Qwen2.5-7B-Instruct"
 
-# Words per chunk when a document has to be split. Comfortably inside the context
-# window of both backends while keeping enough context for a coherent summary.
+# Default words per chunk when a document has to be split. Each backend overrides
+# this with a value its own context window can actually ingest - see BACKENDS.
 CHUNK_WORDS = 900
+
+# BART's encoder is hard-capped at 1024 positions. At roughly 1.4 tokens per English
+# word that is ~730 words, so anything above this is silently truncated rather than
+# summarised. 600 leaves headroom for tokeniser variation across documents.
+HF_LOCAL_CHUNK_WORDS = 600
 
 # The summary "styles" exposed in the UI. Each maps to an instruction appended to
 # the system prompt, which is how we steer one model across several output formats.
@@ -95,9 +100,17 @@ def chunk_text(text: str, chunk_words: int = None) -> list:
     resolved at call time so CHUNK_WORDS can be tuned when benchmarking.
     """
     chunk_words = chunk_words or CHUNK_WORDS
-    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+    # Collapse whitespace inside each paragraph while keeping the blank-line breaks
+    # between them. Source documents are often hard-wrapped, and a line break mid
+    # sentence makes the tokeniser fuse the words either side of it ("and\ndeclarative"
+    # came back out of the model as "anddeclarative").
+    paragraphs = [
+        re.sub(r"\s+", " ", p).strip()
+        for p in re.split(r"\n\s*\n", text)
+        if p.strip()
+    ]
     if not paragraphs:
-        paragraphs = [text.strip()]
+        paragraphs = [re.sub(r"\s+", " ", text).strip()]
 
     units = []
     for paragraph in paragraphs:
@@ -359,9 +372,20 @@ BACKENDS = {
         "fn": _summarize_hf_local,
         "model": HF_LOCAL_MODEL,
         "style_aware": False,
+        "chunk_words": HF_LOCAL_CHUNK_WORDS,
     },
-    "hf_api": {"fn": _summarize_hf_api, "model": HF_API_MODEL, "style_aware": True},
-    "openai": {"fn": _summarize_openai, "model": OPENAI_MODEL, "style_aware": True},
+    "hf_api": {
+        "fn": _summarize_hf_api,
+        "model": HF_API_MODEL,
+        "style_aware": True,
+        "chunk_words": CHUNK_WORDS,
+    },
+    "openai": {
+        "fn": _summarize_openai,
+        "model": OPENAI_MODEL,
+        "style_aware": True,
+        "chunk_words": CHUNK_WORDS,
+    },
 }
 
 DEFAULT_BACKEND = "hf_local"
@@ -407,7 +431,9 @@ def summarize(
 
     spec = BACKENDS[backend]
     summarize_fn, model_name = spec["fn"], spec["model"]
-    chunks = chunk_text(text)
+    # Chunk to what this backend's context window can actually ingest. Getting this
+    # wrong does not raise - the tail of the document is just silently dropped.
+    chunks = chunk_text(text, spec.get("chunk_words"))
 
     with track("summarization", model_name) as run:
         if len(chunks) == 1:

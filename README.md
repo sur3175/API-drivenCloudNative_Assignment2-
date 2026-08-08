@@ -70,8 +70,28 @@ result = summarize(open("Data/sample_lecture_notes.txt").read(),
 print(result["summary"], result["latency_sec"], result["rougeL"])
 ```
 
-Measured on the sample notes (831 words, CPU, `hf_local`): 3 chunks, 40 s,
-ROUGE-L 0.28, 5.2x compression, $0.00.
+### Measured comparison
+
+Reproduce with `python scripts/benchmark_summarization.py`, which runs every backend
+over the same document with identical settings. Sample notes (831 words), revision
+bullet points, target 150 words, CPU:
+
+| Backend | Latency | Tokens | Cost | Words out | Compression | ROUGE-1 | ROUGE-L |
+|---|---|---|---|---|---|---|---|
+| `hf_local` | 39.7 s | 1315 | $0.00 | 116 | 7.2x | 0.225 | 0.225 |
+| `hf_api` | 2.2 s | 1299 | $0.00 | 118 | 7.0x | 0.189 | 0.128 |
+
+**The local SLM scores higher on ROUGE but writes worse summaries** — and that is a
+property of the metric, not a ranking. ROUGE here is measured against the *source*,
+because the project has no human reference summaries. It therefore rewards reusing
+the source's own wording: DistilBART largely stitches together sentences it copied,
+while Qwen paraphrases, which costs it ROUGE points despite the output being more
+readable and better organised. Read ROUGE as a faithfulness / anti-hallucination
+signal, not as a quality score. Judge quality by reading the two outputs.
+
+The 18x latency gap is the other half of the trade: the local model is free and
+private but CPU-bound, the API model is fast but spends credits and leaves the
+machine.
 
 `Data/sample_lecture_notes.txt` is a ready-made input for the demo.
 
