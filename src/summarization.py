@@ -209,10 +209,12 @@ def _build_prompt(text: str, style: str, target_words: int, focus: str = "") -> 
 
 def _summarize_openai(text: str, style: str, target_words: int, focus: str, run) -> str:
     """One OpenAI call. `run` is the metrics record for the enclosing invocation."""
-    # Imported here rather than at module scope: config.py raises if OPENAI_API_KEY is
-    # missing, and the local SLM backend must stay usable without an API key.
-    from config import client
+    # Built here rather than at module scope: create_client() raises if
+    # OPENAI_API_KEY is missing, and the Hugging Face backends must stay usable
+    # without an OpenAI key.
+    from config import create_client
 
+    client = create_client("openai")
     response = client.responses.create(
         model=OPENAI_MODEL,
         instructions=SYSTEM_PROMPT,

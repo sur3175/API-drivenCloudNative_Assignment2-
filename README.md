@@ -22,16 +22,27 @@ condenses it for revision, answers questions on it, and works with diagrams.
 
 ```bash
 pip install -r requirements.txt
-streamlit run app.py
 ```
 
-Summarisation works out of the box with **no API key and no credits** — its default
-backend is a Hugging Face model that downloads once (~1.2 GB) and then runs locally.
+The app takes a provider argument that selects the client used by text generation
+and image generation:
 
-For the other backends, copy `.env.example` to `.env` and add the keys you need:
-`HF_TOKEN` (free, from huggingface.co/settings/tokens) for the Hugging Face
-Inference API, and `OPENAI_API_KEY` for the OpenAI sub-tasks. `.env` is git-ignored
-— never commit a key.
+```bash
+python -m streamlit run app.py -- hf
+```
+
+```bash
+python -m streamlit run app.py -- openai
+```
+
+Copy `.env.example` to `.env` and add the keys you need: `HF_API_KEY` (free, from
+huggingface.co/settings/tokens) for the Hugging Face provider, `OPENAI_API_KEY` for
+the OpenAI provider. `.env` is git-ignored — never commit a key.
+
+Summarisation is the exception: its default backend needs **no key and no credits**,
+because the model downloads once (~1.2 GB) and then runs locally. It picks its own
+backend from the dropdown in its section rather than from the provider argument, so
+the LLM-vs-SLM comparison can be run without restarting the app.
 
 ## Text summarisation
 
