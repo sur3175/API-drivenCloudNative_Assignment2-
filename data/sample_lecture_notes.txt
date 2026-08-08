@@ -1,0 +1,86 @@
+CCZG506 - Lecture Notes: Designing API-Driven Cloud Native Systems
+
+1. What "cloud native" actually means
+
+Cloud native is not a synonym for "runs in the cloud". A lift-and-shift migration, in
+which a monolithic application is copied onto a virtual machine rented from a cloud
+provider, is a cloud deployment but not a cloud native one. The distinguishing property
+of a cloud native system is that it is designed on the assumption that the underlying
+infrastructure is elastic, unreliable and disposable. Individual machines are expected
+to disappear without warning; capacity is expected to grow and shrink on demand; and
+the application is expected to keep serving traffic throughout. Everything that follows
+in this course is a consequence of taking that assumption seriously.
+
+The Cloud Native Computing Foundation summarises the approach through four practices:
+containerisation, dynamic orchestration, a microservices-oriented decomposition, and
+declarative APIs. The first three are mechanical. The fourth is the one students most
+often underestimate, and it is the subject of this module.
+
+2. Why the API is the architectural boundary
+
+In a monolith, one component calls another through a function call. The compiler
+enforces the contract, the call cannot fail in transit, and the two components are
+deployed together, so they are always at the same version. Decompose that monolith into
+services and every one of those guarantees disappears. The contract is now a network
+protocol, the call can fail or time out, and the two sides are deployed independently,
+which means they are routinely at different versions at the same moment.
+
+The API is therefore not documentation attached to a service; it is the only thing
+holding the system together. A well-specified API lets two teams work without
+coordinating, lets a service be reimplemented in a different language without its
+consumers noticing, and lets the platform route, retry, cache, authenticate and
+rate-limit traffic without understanding the business logic behind it. A poorly
+specified API turns a distributed system into a distributed monolith: all the
+operational cost of microservices with none of the independence.
+
+3. API design principles that survive contact with production
+
+Design the contract before the implementation. Writing the OpenAPI or gRPC definition
+first forces the interface to be expressed in the consumer's vocabulary rather than
+leaking the provider's internal data model. Resources should be nouns; operations
+should map to HTTP verbs with their standard semantics. GET must be safe - calling it
+must never change state - and PUT and DELETE must be idempotent, so a client that
+retries after a timeout does not cause damage. POST is neither, which is why creating
+resources reliably usually requires an idempotency key supplied by the client.
+
+Version explicitly and additively. Adding an optional field is backwards compatible;
+removing a field, renaming one, tightening a validation rule or changing the meaning of
+an existing value is not. Breaking changes require a new version served in parallel
+with the old one until consumers have migrated. In practice most teams find that a
+strict "never remove, never repurpose" discipline avoids the majority of versioning
+work altogether.
+
+Fail predictably. Return the correct status class - 4xx when the client can fix the
+problem, 5xx when it cannot - and include a machine-readable error code alongside the
+human-readable message, because consumers will otherwise resort to string-matching the
+message and you will have accidentally made the prose part of your contract.
+
+4. Operating an API-driven system
+
+Distributed systems fail partially, which is harder than failing completely. Three
+patterns handle most of it. Timeouts bound how long a caller waits, so a slow dependency
+degrades one request rather than exhausting the caller's entire thread pool. Retries
+with exponential backoff and jitter recover from transient faults without synchronising
+every client into a thundering herd. Circuit breakers stop calls to a dependency that is
+already failing, giving it room to recover instead of amplifying the outage.
+
+Observability is what makes these patterns tunable. Three signals matter: metrics for
+aggregate behaviour, logs for individual events, and distributed traces that follow one
+request across service boundaries. A trace is what turns "checkout is slow" into
+"checkout is slow because the inventory service's database call takes 800 ms at p99".
+Latency should always be reported as percentiles, never as an average, because averages
+conceal exactly the tail behaviour that users experience as the service being broken.
+
+Finally, define service level objectives before an incident rather than during one. An
+SLO states a target - for example, 99.9% of requests succeed within 300 ms over a
+rolling 30-day window - and the error budget it implies gives the team an agreed,
+quantitative basis for deciding when to ship features and when to stop and fix
+reliability.
+
+5. Summary
+
+Cloud native design assumes unreliable, elastic infrastructure. Microservices make the
+API the load-bearing architectural boundary, so contracts must be designed first,
+versioned additively, and made to fail predictably. Operationally, timeouts, retries
+with backoff, and circuit breakers contain partial failure, while metrics, logs, traces
+and explicit SLOs make the system's behaviour measurable rather than anecdotal.

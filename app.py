@@ -8,6 +8,11 @@ from src.image_generation import generate_image
 from src.image_generation import save_image
 
 from config import create_client
+from src.summarization import summarize, STYLES, DEFAULT_STYLE
+from src.question_answering import answer_question
+from src.practice_questions import generate_questions, is_available as pq_available
+from src.image_classification import is_implemented as ic_implemented
+from src.metrics import summarise_metrics
 
 # Validate and process the command-line provider argument.
 # The provider must be either "openai" or "hf"; based on the selected
@@ -128,9 +133,247 @@ if "generated_image" in sl.session_state:
 
 #Question Answering
 sl.header("Question Answering")
-question = sl.text_input("Enter your question")
+sl.caption(
+    "Ask questions about your study material. Answers are grounded in the material "
+    "you provide - if it does not cover the question, the assistant says so rather "
+    "than guessing."
+)
 
-if sl.button("Generate Answer") :
-    answer = "This is my AI-generated answer"
-    sl.write("### Answer")
-    sl.write(answer)
+qa_uploaded = sl.file_uploader(
+    "Upload the study material (optional)", type=["txt", "md"], key="qa_upload"
+)
+qa_default = ""
+if qa_uploaded is not None:
+    qa_default = qa_uploaded.read().decode("utf-8", errors="ignore")
+
+qa_context = sl.text_area(
+    "Study material to answer from:",
+    value=qa_default,
+    height=180,
+    placeholder="Paste the lecture notes or textbook section the question is about...",
+    key="qa_context",
+)
+question = sl.text_input("Enter your question", key="qa_question")
+
+qa_backend_label = sl.radio(
+    "Model",
+    [
+        "HF DistilBERT SQuAD, local (SLM, extractive)",
+        "HF Qwen2.5-7B, Inference API (LLM, generative)",
+        "OpenAI gpt-4o-mini (LLM, generative)",
+    ],
+    key="qa_backend",
+    help="The extractive model can only copy spans out of your material, so it "
+         "cannot hallucinate. The generative models read better but must be held "
+         "to the material by the prompt.",
+)
+qa_backend = (
+    "hf_local" if qa_backend_label.startswith("HF DistilBERT")
+    else "hf_api" if qa_backend_label.startswith("HF Qwen")
+    else "openai"
+)
+
+if sl.button("Generate Answer"):
+    try:
+        with sl.spinner("Finding the answer..."):
+            qa_result = answer_question(question, qa_context, backend=qa_backend)
+    except ValueError as exc:
+        sl.warning(str(exc))
+    except Exception as exc:
+        sl.error(f"Question answering failed: {exc}")
+    else:
+        sl.subheader("Answer")
+        if qa_result["answered"]:
+            sl.write(qa_result["answer"])
+            if qa_result["evidence"]:
+                sl.caption(f"From the material: “{qa_result['evidence']}”")
+        else:
+            sl.info(qa_result["answer"])
+
+        sl.markdown("**Metrics for this run**")
+        q1, q2, q3, q4 = sl.columns(4)
+        q1.metric("Latency", f"{qa_result['latency_sec']} s")
+        q2.metric("Tokens", qa_result["total_tokens"])
+        q3.metric("Cost", f"${qa_result['cost_usd']:.5f}")
+        q4.metric(
+            "Confidence" if qa_result["confidence"] is not None else "Groundedness",
+            qa_result["confidence"] if qa_result["confidence"] is not None
+            else qa_result["groundedness"],
+        )
+        sl.caption(
+            f"Model: {qa_result['model']} · "
+            f"{'extractive' if qa_result['extractive'] else 'generative'} · "
+            f"groundedness {qa_result['groundedness']}"
+        )
+
+
+#Text Summarisation
+sl.header("Text Summarisation")
+sl.caption(
+    "Condense lecture notes, textbook chapters or research papers into revision-ready "
+    "material. Long documents are split and summarised map-reduce style."
+)
+
+uploaded = sl.file_uploader(
+    "Upload a study document (optional)", type=["txt", "md"], key="summary_upload"
+)
+
+default_source = ""
+if uploaded is not None:
+    default_source = uploaded.read().decode("utf-8", errors="ignore")
+
+source_text = sl.text_area(
+    "Text to summarise:",
+    value=default_source,
+    height=220,
+    placeholder="Paste lecture notes, a textbook section or an article here...",
+    key="summary_source",
+)
+
+col_left, col_right = sl.columns(2)
+with col_left:
+    style = sl.selectbox("Summary style", list(STYLES), index=list(STYLES).index(DEFAULT_STYLE))
+    backend_label = sl.radio(
+        "Model",
+        [
+            "HF DistilBART, local (SLM)",
+            "HF Qwen2.5-7B, Inference API (LLM)",
+            "OpenAI gpt-4o-mini (LLM)",
+        ],
+        help="The local Hugging Face model needs no key and consumes no credits. "
+             "The Inference API option needs a free HF_TOKEN and is the only "
+             "backend that can genuinely follow the output styles.",
+    )
+with col_right:
+    target_words = sl.slider("Approximate summary length (words)", 50, 400, 150, step=25)
+    focus = sl.text_input(
+        "Focus on a particular aspect (optional)",
+        placeholder="e.g. only the evaluation methodology",
+    )
+
+BACKEND_BY_LABEL = {
+    "HF DistilBART, local (SLM)": "hf_local",
+    "HF Qwen2.5-7B, Inference API (LLM)": "hf_api",
+    "OpenAI gpt-4o-mini (LLM)": "openai",
+}
+backend = BACKEND_BY_LABEL[backend_label]
+
+if sl.button("Summarise"):
+    if not source_text.strip():
+        sl.warning("Please paste some text or upload a document")
+    else:
+        try:
+            with sl.spinner("Summarising..."):
+                result = summarize(
+                    source_text,
+                    style=style,
+                    target_words=target_words,
+                    backend=backend,
+                    focus=focus,
+                )
+        except ValueError as exc:
+            sl.warning(str(exc))
+        except Exception as exc:
+            sl.error(f"Summarisation failed: {exc}")
+        else:
+            sl.subheader("Summary")
+            sl.write(result["summary"])
+            sl.download_button(
+                "Download summary", result["summary"], file_name="summary.txt"
+            )
+
+            sl.markdown("**Metrics for this run**")
+            m1, m2, m3, m4 = sl.columns(4)
+            m1.metric("Latency", f"{result['latency_sec']} s")
+            m2.metric("Tokens", result["total_tokens"])
+            m3.metric("Cost", f"${result['cost_usd']:.5f}")
+            m4.metric("Compression", f"{result['compression_ratio']}x")
+            sl.caption(
+                f"Model: {result['model']} · chunks: {result['chunks']} · "
+                f"{result['source_words']} words in, {result['summary_words']} words out · "
+                f"ROUGE-1 {result['rouge1']} · ROUGE-L {result['rougeL']} · "
+                f"style applied by {result['style_applied_by']}"
+            )
+            if result["style_applied_by"] == "formatter" and style != DEFAULT_STYLE:
+                sl.caption(
+                    ":grey[DistilBART cannot follow style instructions, so its own "
+                    "sentences were re-laid-out into this shape. Use the Inference "
+                    "API backend for model-generated styling.]"
+                )
+
+
+#Image Classification - not implemented yet, section reserved
+sl.header("Image Classification")
+if not ic_implemented():
+    sl.info(
+        "Not built yet. The module skeleton and intended design are in "
+        "`src/image_classification.py`; the planned model is "
+        "`google/vit-base-patch16-224`, local and API backends, wired to the same "
+        "metrics layer as the other sub-tasks."
+    )
+
+
+#Practice Question Generator - the fine-tuned model (assignment requirement 8)
+sl.header("Practice Question Generator")
+sl.caption(
+    "Turns study notes into exam-style practice questions, using a t5-small "
+    "fine-tuned on the SciQ science-exam dataset. Key terms are picked out of your "
+    "notes automatically and the model writes a question for each one."
+)
+
+if not pq_available():
+    sl.info(
+        "The fine-tuned model has not been trained on this machine yet. Run:\n\n"
+        "`python scripts/finetune_qa.py --task qgen`"
+    )
+else:
+    pq_context = sl.text_area(
+        "Study material:",
+        height=180,
+        placeholder="Paste the notes you want to be quizzed on...",
+        key="pq_context",
+    )
+    pq_count = sl.slider("How many questions", 3, 10, 5, key="pq_count")
+
+    if sl.button("Generate practice questions"):
+        try:
+            with sl.spinner("Writing questions..."):
+                pq_result = generate_questions(pq_context, num_questions=pq_count)
+        except ValueError as exc:
+            sl.warning(str(exc))
+        except Exception as exc:
+            sl.error(f"Question generation failed: {exc}")
+        else:
+            sl.subheader("Practice questions")
+            for i, item in enumerate(pq_result["questions"], start=1):
+                sl.markdown(f"**{i}. {item['question']}**")
+                sl.caption(f"Answer: {item['answer']}")
+
+            sl.markdown("**Metrics for this run**")
+            p1, p2, p3 = sl.columns(3)
+            p1.metric("Latency", f"{pq_result['latency_sec']} s")
+            p2.metric("Questions", len(pq_result["questions"]))
+            p3.metric("Cost", f"${pq_result['cost_usd']:.5f}")
+            sl.caption(f"Model: {pq_result['model']} · runs locally, no API cost")
+
+
+#LLMOps metrics dashboard - aggregates every model call logged to Data/metrics_log.csv
+with sl.expander("LLMOps metrics dashboard"):
+    overall = summarise_metrics()
+    if not overall:
+        sl.info("No model calls logged yet. Run a sub-task above to populate the metrics.")
+    else:
+        d1, d2, d3, d4 = sl.columns(4)
+        d1.metric("Total calls", overall["calls"])
+        d2.metric("Avg latency", f"{overall['avg_latency_sec']} s")
+        d3.metric("Total cost", f"${overall['total_cost_usd']:.4f}")
+        d4.metric("Success rate", f"{overall['success_rate'] * 100:.1f}%")
+        sl.caption(
+            f"p95 latency {overall['p95_latency_sec']} s · "
+            f"{overall['total_tokens']} tokens consumed"
+        )
+
+        summary_stats = summarise_metrics("summarization")
+        if summary_stats:
+            sl.markdown("**Summarisation sub-task**")
+            sl.json(summary_stats)

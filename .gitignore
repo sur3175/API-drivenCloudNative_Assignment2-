@@ -1,0 +1,25 @@
+# Secrets - never commit the real key
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Local run artefacts
+data/metrics_log.csv
+
+# Fine-tuned model weights - regenerate with scripts/finetune_qa.py.
+# Too large for git; the measured results in data/finetuning_results.json are committed.
+models/
+.streamlit/secrets.toml
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Generated submission document - rebuild with scripts/build_submission_doc.py
+submission/
