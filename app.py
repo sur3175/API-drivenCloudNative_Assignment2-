@@ -1,14 +1,29 @@
 # We are using Streamlit which is python framework that lets us quickly turn 
 # python code—especially ML/AI models—into an interactive web application.
-
+import sys
 import streamlit as sl
 from unittest import result
 from src.text_generation import generate_text
 from src.image_generation import generate_image
+from config import create_client
 
+# Validate and process the command-line provider argument.
+# The provider must be either "openai" or "hf"; based on the selected
+# provider, create_client() initializes the corresponding API client.
+if len(sys.argv) < 2:
+    raise RuntimeError("Usage: streamlit run app.py -- [openai|hf]")
+
+provider = sys.argv[1].lower()
+
+if provider not in ("openai", "hf"):
+    raise RuntimeError("Provider must be 'openai' or 'hf'")
+
+client = create_client(provider)
+
+# Application title
 sl.title("AI Application - Education")
 
-#Text Generator
+#Text Generator 
 sl.header("Text Generator")
 
 prompt = sl.text_area(
@@ -21,7 +36,7 @@ if sl.button("Generate Text"):
     else:
         with sl.spinner("Generating text..."):
         
-            result = generate_text(prompt)
+            result = generate_text(client, prompt)
         sl.subheader("Generated Text")
         sl.write(result)
 
@@ -37,7 +52,7 @@ if sl.button("Generate Image") :
     else:
         with sl.spinner("Generating image..."):
         
-            result = generate_image(prompt)
+            result = generate_image(client, prompt)
         sl.subheader("Generated Image")
         sl.write(result)
 
