@@ -124,3 +124,13 @@ if "generated_image" in sl.session_state:
                 sl.error(
                     f"Failed to save JPEG: {e}"
                 )
+
+
+#Question Answering
+sl.header("Question Answering")
+question = sl.text_input("Enter your question")
+
+if sl.button("Generate Answer") :
+    answer = "This is my AI-generated answer"
+    sl.write("### Answer")
+    sl.write(answer)
