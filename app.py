@@ -8,6 +8,7 @@ from src.image_generation import generate_image
 from config import create_client
 from src.summarization import summarize, STYLES, DEFAULT_STYLE
 from src.question_answering import answer_question
+from src.practice_questions import generate_questions, is_available as pq_available
 from src.metrics import summarise_metrics
 
 # Validate and process the command-line provider argument.
@@ -229,6 +230,50 @@ if sl.button("Summarise"):
                     "sentences were re-laid-out into this shape. Use the Inference "
                     "API backend for model-generated styling.]"
                 )
+
+
+#Practice Question Generator - the fine-tuned model (assignment requirement 8)
+sl.header("Practice Question Generator")
+sl.caption(
+    "Turns study notes into exam-style practice questions, using a t5-small "
+    "fine-tuned on the SciQ science-exam dataset. Key terms are picked out of your "
+    "notes automatically and the model writes a question for each one."
+)
+
+if not pq_available():
+    sl.info(
+        "The fine-tuned model has not been trained on this machine yet. Run:\n\n"
+        "`python scripts/finetune_qa.py --task qgen`"
+    )
+else:
+    pq_context = sl.text_area(
+        "Study material:",
+        height=180,
+        placeholder="Paste the notes you want to be quizzed on...",
+        key="pq_context",
+    )
+    pq_count = sl.slider("How many questions", 3, 10, 5, key="pq_count")
+
+    if sl.button("Generate practice questions"):
+        try:
+            with sl.spinner("Writing questions..."):
+                pq_result = generate_questions(pq_context, num_questions=pq_count)
+        except ValueError as exc:
+            sl.warning(str(exc))
+        except Exception as exc:
+            sl.error(f"Question generation failed: {exc}")
+        else:
+            sl.subheader("Practice questions")
+            for i, item in enumerate(pq_result["questions"], start=1):
+                sl.markdown(f"**{i}. {item['question']}**")
+                sl.caption(f"Answer: {item['answer']}")
+
+            sl.markdown("**Metrics for this run**")
+            p1, p2, p3 = sl.columns(3)
+            p1.metric("Latency", f"{pq_result['latency_sec']} s")
+            p2.metric("Questions", len(pq_result["questions"]))
+            p3.metric("Cost", f"${pq_result['cost_usd']:.5f}")
+            sl.caption(f"Model: {pq_result['model']} · runs locally, no API cost")
 
 
 #LLMOps metrics dashboard - aggregates every model call logged to Data/metrics_log.csv

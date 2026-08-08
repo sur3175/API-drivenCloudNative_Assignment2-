@@ -9,5 +9,9 @@ transformers>=4.44
 torch>=2.2
 huggingface_hub>=0.30
 
+# Only needed to fine-tune the model (scripts/finetune_qa.py). Not needed to run
+# the app - the fine-tuned weights load through transformers like any other model.
+datasets>=3.0
+
 # Optional: only needed for the OpenAI backends kept for cost comparison.
 openai>=1.60

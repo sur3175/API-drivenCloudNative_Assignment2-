@@ -10,6 +10,10 @@ venv/
 
 # Local run artefacts
 Data/metrics_log.csv
+
+# Fine-tuned model weights - regenerate with scripts/finetune_qa.py.
+# Too large for git; the measured results in Data/finetuning_results.json are committed.
+models/
 .streamlit/secrets.toml
 
 # IDE / OS
