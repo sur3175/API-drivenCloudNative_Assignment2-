@@ -8,6 +8,7 @@ python-dotenv>=1.0
 transformers>=4.44
 torch>=2.2
 huggingface_hub>=0.30
+pillow>=10.0
 
 # Only needed to fine-tune the model (scripts/finetune_qa.py). Not needed to run
 # the app - the fine-tuned weights load through transformers like any other model.
