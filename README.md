@@ -9,7 +9,7 @@ Designed and developed an interactive API-driven AI application combining NLP an
 
 | # | Sub-task | Category | Module | Model | Status |
 |---|----------|----------|--------|-------|--------|
-| 1 | Text generation | NLP | `src/text_generation.py` | gpt-4o-mini | Done |
+| 1 | Text generation | NLP | `src/text_generation.py` | openai/gpt-oss-120b:cheapest | Done |
 | 2 | Text summarisation | NLP | `src/summarization.py` | DistilBART local (SLM) / Qwen2.5-7B via HF API (LLM) | Done |
 | 3 | Question answering | NLP | `src/question_answering.py` | DistilBERT SQuAD (SLM) / Qwen2.5-7B via HF API (LLM) | Done |
 | 4 | Image generation | CV | `src/image_generation.py` | gpt-image-1 | Done |
