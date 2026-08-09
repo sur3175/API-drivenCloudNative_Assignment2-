@@ -56,8 +56,10 @@ it, condenses it for revision, answers questions about it, and produces practice
 questions to test recall. We chose Natural Language Processing and Computer Vision as
 our two categories."
 
-**Say:** "The important design point is that the sub-tasks aren't five unrelated demos
-— they all operate on the same student-supplied material and feed one objective."
+**Say:** "The important design point is that the sub-tasks aren't six unrelated demos.
+The student loads one document, and every sub-task works from it — generating,
+condensing, questioning, quizzing and diagramming the same material. You'll see that
+thread run through the whole demo."
 
 **Show:** the app's landing view, scroll slowly top to bottom so all sections are seen.
 
@@ -79,15 +81,19 @@ compare a small local model against a hosted large one without restarting anythi
 
 ## 1:15 — Study Material: load once, use everywhere (30 s)
 
-**Do:** click **Cloud-native lecture notes**.
+**Do:** click **Biology revision notes** (use these throughout — the fine-tuned model
+and the mind map are both trained on / tuned for science).
 
-**Say:** "The document is loaded once here. Question answering, summarisation and the
-practice question generator all read from it — you don't paste the same notes into
-three boxes. You can upload a `.txt`/`.md` file, paste directly, or load one of our
-two samples."
+**Say:** "This is the spine of the whole application. The document is loaded once here
+— upload a `.txt` or `.md`, paste directly, or click a sample — and **every** sub-task
+below works from it. Text generation takes it as context, image generation builds a
+mind map from its key terms, question answering answers strictly from it,
+summarisation condenses it, and the practice question generator quizzes on it."
 
 **Point out:** the word count under the box, and the same count echoed in each section
 below. That's the shared state working.
+
+**Say:** "That's what makes this one workflow rather than six separate demos."
 
 ---
 
@@ -95,27 +101,44 @@ below. That's the shared state working.
 
 ## 1:45 — Sub-task 1: Text generation (45 s)
 
-**Do:** prompt it with something a student would actually ask, e.g.
-*"Explain the difference between aerobic and anaerobic respiration for a GCSE student."*
+**Do:** leave **"Use my study material as context"** ticked — it turns itself on once
+a document is loaded. Prompt with something a student would actually ask, e.g.
+*"Explain the difference between aerobic and anaerobic respiration for a first-year
+student."*
 
-**Say:** "This is the entry point of the workflow. A student generates study material
-on a topic, and everything downstream operates on material like this. It runs through
-whichever provider the app was launched with."
+**Say:** "Two things here. It generates study material through whichever provider the
+app was launched with — and with this box ticked it takes the document we just loaded
+as context, so it's expanding on the student's *own* notes rather than answering from
+general knowledge."
+
+**Point out:** the caption under the output — *"Generated from your uploaded study
+material."*
 
 ---
 
-## 2:30 — Sub-task 2: Image generation (45 s)
+## 2:30 — Sub-task 2: Image generation (45 s) — *the cohesion moment*
 
-**Do:** prompt e.g. *"A simple labelled diagram of a plant cell."* Generate, then show
-the **Save as PNG** button.
+**Do:** tick **"Build a mind map from my study material"**. The prompt box fills in by
+itself. **Pause on it before generating** — this is the part worth showing.
 
-**Say:** "The same study assistant produces the visual side — a supporting diagram for
-the topic being revised. Generated images render in the app and save to `data/` as
-PNG, JPG or JPEG."
+**Say:** "We didn't write this prompt. Ticking that box runs the same key-term
+extractor the practice question generator uses over the loaded document, takes the
+top-ranked term as the central node and the rest as branches, and writes the diagram
+prompt itself. On these biology notes it picked *cells* as the centre, with branches
+for respiration, photosynthesis, ATP and energy — that's what the notes actually
+emphasise, not a generic request."
 
-> If image generation is unavailable on the day (gpt-image-1 needs a verified OpenAI
-> org and paid credits), say so plainly and show a previously generated image. Do not
-> spend demo time debugging it.
+**Show:** the "Key terms found:" line above the prompt.
+
+**Do:** Generate, then show the **Save as PNG** button.
+
+**Say:** "So the visual side of revision is driven by the same document as everything
+else."
+
+> **If image generation fails on the day** — `gpt-image-1` needs a verified OpenAI org
+> with paid credits, and this is the one path we could not test end to end — say so
+> plainly, show the auto-written prompt, and move on. The prompt generation is the
+> interesting part and it works regardless. **Do not debug on camera.**
 
 ---
 
@@ -194,9 +217,13 @@ restricted to a fixed label set, so it can actually say *handwritten notes* or
 *circuit diagram*. It's the same small-model-versus-large-model trade-off we showed in
 question answering, in a different modality."
 
-**Say:** "In the study-assistant workflow this is the router: it tells us whether the
-student photographed a diagram or a page of notes, so we know which sub-task to send
-it to."
+**Say:** "This is where the workflow starts when the material arrives as a photo
+rather than as text. It tells us whether the student photographed a diagram or a page
+of notes, so we know which sub-task to route it to — notes to the summariser, a
+diagram to be described. That's how it hangs together with the rest."
+
+> `data/sample_cell_diagram.png` is in the repo as a ready-made input if you don't
+> want to photograph something on the day.
 
 ---
 
@@ -302,10 +329,19 @@ ROUGE-L at 57% are the fairer reads.
 To avoid an extra dependency for about thirty lines of code. It's standard ROUGE-1 F1
 on unigram overlap and ROUGE-L on longest common subsequence.
 
+**"How are these six sub-tasks cohesive, rather than six separate demos?"**
+*Expect this one — the brief marks it.* One document drives all six. It's loaded once
+and text generation takes it as context, image generation extracts its key terms into a
+mind-map prompt, question answering answers strictly from it, summarisation condenses
+it, practice question generation quizzes on it, and image classification is the entry
+point when that material arrives as a photo instead of text. They share the shared
+metrics layer too, so one dashboard covers the whole workflow.
+
 **"What would you do with more time?"**
-Implement image classification, instrument the remaining two sub-tasks, train longer on
-more data with a larger base model, and collect human reference summaries so ROUGE can
-measure quality rather than faithfulness.
+Instrument text and image generation with the metrics layer so the dashboard covers all
+six, train the fine-tuned model longer on more data with a larger base model, and
+collect human reference summaries so ROUGE can measure quality rather than
+faithfulness.
 
 ---
 
