@@ -11,6 +11,7 @@ from config import create_client
 from src.summarization import summarize, STYLES, DEFAULT_STYLE
 from src.question_answering import answer_question
 from src.practice_questions import generate_questions, is_available as pq_available
+from src.practice_questions import candidate_answers
 from src.image_classification import classify_image, is_implemented as ic_implemented
 from src.metrics import summarise_metrics
 from config import DATA_DIR
@@ -92,29 +93,90 @@ if study_material.strip():
 else:
     sl.caption("No material loaded yet.")
 
-#Text Generator 
+#Text Generator
 sl.header("Text Generator")
+sl.caption(
+    "Generate study material on a topic, or expand on the notes you loaded above."
+)
 
 prompt = sl.text_area(
-    "Enter your prompt for text generation:",placeholder="" 
+    "Enter your prompt for text generation:", placeholder=""
+)
+
+# Ties the sub-task to the shared document rather than leaving it a standalone
+# prompt box: with this ticked the model is answering about the student's own
+# material, which is what makes it part of one workflow.
+tg_use_material = sl.checkbox(
+    "Use my study material as context",
+    value=bool(study_material.strip()),
+    key="tg_use_material",
+    disabled=not study_material.strip(),
+    help="Sends the document from the Study Material section along with your prompt.",
 )
 
 if sl.button("Generate Text"):
     if not prompt.strip():
         sl.warning("Please enter a prompt")
     else:
+        final_prompt = prompt
+        if tg_use_material and study_material.strip():
+            # Truncated so a long document cannot blow the context window.
+            final_prompt = (
+                "Using the student's study material below, answer this request.\n\n"
+                f"Request: {prompt}\n\n"
+                "Study material:\n---\n"
+                f"{' '.join(study_material.split()[:1200])}\n---"
+            )
         with sl.spinner("Generating text..."):
-        
-            generated_text = generate_text(client, prompt, provider)
+            generated_text = generate_text(client, final_prompt, provider)
         sl.subheader("Generated Text")
         sl.write(generated_text)
+        if tg_use_material and study_material.strip():
+            sl.caption("Generated from your uploaded study material.")
 
 # Image Generator
 sl.header("Image Generator")
+sl.caption(
+    "Generate a diagram to revise from - either from your own prompt, or as a mind "
+    "map built automatically from the study material above."
+)
+
+# Build a mind-map prompt out of the loaded document. The key terms come from the
+# same extractor the practice question generator uses, so the diagram is drawn from
+# what the notes actually emphasise rather than from a generic prompt. This is what
+# connects image generation to the rest of the workflow.
+mindmap_terms = []
+if study_material.strip():
+    try:
+        mindmap_terms = candidate_answers(study_material, 8)
+    except Exception:
+        mindmap_terms = []
+
+ig_from_material = sl.checkbox(
+    "Build a mind map from my study material",
+    value=False,
+    key="ig_from_material",
+    disabled=not mindmap_terms,
+    help="Extracts the key terms from your document and writes the diagram prompt "
+         "for you.",
+)
+
+suggested_prompt = ""
+if ig_from_material and mindmap_terms:
+    central, *branches = mindmap_terms
+    suggested_prompt = (
+        f"A clean, labelled educational mind map diagram about '{central}'. "
+        f"Central node '{central}' with clearly labelled branches for: "
+        f"{', '.join(branches)}. Flat vector illustration, white background, "
+        "high-contrast legible text, no decorative clutter, suitable for revision."
+    )
+    sl.caption(f"Key terms found: {', '.join(mindmap_terms)}")
 
 image_prompt = sl.text_area(
     "Enter your prompt for image generation:",
-    placeholder=""
+    value=suggested_prompt,
+    placeholder="",
+    key=f"image_prompt_{ig_from_material}",
 )
 
 if sl.button("Generate Image"):

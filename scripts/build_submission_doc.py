@@ -182,14 +182,35 @@ def build():
          "Six sub-tasks against the five required. Sub-task 6 is the fine-tuned model "
          "and also satisfies requirement 8.")
 
-    para(doc, "1.2 Shared study material", style="Heading 2")
+    para(doc, "1.2 Cohesion: one document, six sub-tasks", style="Heading 2")
     para(doc,
          "The student's document is uploaded or pasted once, in the Study Material "
-         "section at the top of the application, and question answering, summarisation "
-         "and practice question generation all read from it. This removes the need to "
-         "paste the same notes into three separate boxes and keeps the sub-tasks "
-         "operating on one shared artefact, which is what makes them a workflow rather "
-         "than independent demos.")
+         "section at the top of the application, and every text sub-task reads from it. "
+         "This is what makes the sub-tasks a workflow rather than six independent demos, "
+         "which requirement 5 of the brief asks for.")
+    add_table(
+        doc,
+        ["Sub-task", "How it uses the shared document"],
+        [
+            ["Text generation",
+             "Optionally sends the document as context, so the model answers about the "
+             "student's own material rather than from general knowledge"],
+            ["Image generation",
+             "Extracts the document's key terms and writes a mind-map prompt from them, "
+             "so the diagram is drawn from what the notes actually emphasise"],
+            ["Question answering", "Answers strictly from the document"],
+            ["Text summarisation", "Condenses the document"],
+            ["Image classification",
+             "The entry point for material that arrives as a photo - it labels what was "
+             "photographed so it can be routed to the right sub-task"],
+            ["Practice question generation",
+             "Generates exam questions from the document's key terms"],
+        ],
+        widths=[1.7, 4.3],
+    )
+    add_image(doc, "shared_material/01_shared_study_material.png",
+              "Figure 1: The document is loaded once - by upload, paste, or a one-click "
+              "sample - and every section below reads from it.")
 
     para(doc, "1.3 Architecture", style="Heading 2")
     para(doc,
@@ -208,8 +229,37 @@ def build():
 
     doc.add_page_break()
 
+    # ---------------- Generation sub-tasks ----------------
+    para(doc, "2. Sub-tasks: Text and Image Generation", style="Heading 1")
+
+    para(doc, "2.1 Text generation", style="Heading 2")
+    para(doc,
+         "Generates study material on a topic - an explanation, a worked example, a "
+         "revision paragraph - through whichever provider the application was launched "
+         "with. With 'Use my study material as context' ticked, the loaded document is "
+         "sent along with the prompt, so the model expands on the student's own notes "
+         "instead of answering from general knowledge.")
+    add_image(doc, "text_generation/01_text_generation_from_material.png",
+              "Figure 2: Text generation answering from the loaded study material.")
+
+    para(doc, "2.2 Image generation", style="Heading 2")
+    para(doc,
+         "Produces a diagram to revise from. Beyond free-text prompting, the sub-task "
+         "can build the prompt itself: 'Build a mind map from my study material' runs "
+         "the same key-term extractor the practice question generator uses, takes the "
+         "highest-ranked term as the central node and the rest as branches, and writes "
+         "a mind-map prompt. The diagram therefore reflects what the notes emphasise "
+         "rather than a generic request. Generated images can be saved as PNG, JPG or "
+         "JPEG into data/.")
+    add_image(doc, "image_generation/01_mindmap_prompt_from_material.png",
+              "Figure 3: The mind-map prompt written automatically from the loaded "
+              "biology notes - central node 'cells', branches for respiration, "
+              "photosynthesis, ATP and the other extracted key terms.")
+
+    doc.add_page_break()
+
     # ---------------- Sub-tasks ----------------
-    para(doc, "2. Sub-task: Text Summarisation", style="Heading 1")
+    para(doc, "3. Sub-task: Text Summarisation", style="Heading 1")
     para(doc,
          "Condenses long study material into revision-ready form. Five output styles "
          "(concise abstract, revision bullet points, study notes, exam key takeaways, "
@@ -218,13 +268,13 @@ def build():
          "and sentence boundaries, each chunk is summarised, and the partial summaries "
          "are then summarised into the requested style.")
     add_image(doc, "text_summarisation/02_summary_hf_api_bullets.png",
-              "Figure 1: Summarisation with Qwen2.5-7B via the Hugging Face Inference "
+              "Figure 4: Summarisation with Qwen2.5-7B via the Hugging Face Inference "
               "API - revision bullet points, 1.88 s, 6.25x compression.")
     add_image(doc, "text_summarisation/04_summary_hf_local_slm.png",
-              "Figure 2: The same document summarised by DistilBART running locally - "
+              "Figure 5: The same document summarised by DistilBART running locally - "
               "no API cost, but slower and lower quality.")
 
-    para(doc, "2.1 Measured comparison", style="Heading 2")
+    para(doc, "3.1 Measured comparison", style="Heading 2")
     add_table(
         doc,
         ["Backend", "Latency", "Tokens", "Cost", "Compression", "ROUGE-1", "ROUGE-L"],
@@ -243,7 +293,7 @@ def build():
 
     doc.add_page_break()
 
-    para(doc, "3. Sub-task: Question Answering", style="Heading 1")
+    para(doc, "4. Sub-task: Question Answering", style="Heading 1")
     para(doc,
          "Answers student questions strictly from the material supplied, not from the "
          "model's own knowledge. Two backends of deliberately different kinds: an "
@@ -251,12 +301,12 @@ def build():
          "it came from, and a generative model that reads better and can answer across "
          "several sentences.")
     add_image(doc, "question_answering/02_qa_extractive_local_slm.png",
-              "Figure 3: Extractive answering with DistilBERT SQuAD running locally. "
+              "Figure 6: Extractive answering with DistilBERT SQuAD running locally. "
               "The answer is a span copied from the material, so it cannot hallucinate.")
     add_image(doc, "question_answering/03_qa_generative_hf_api.png",
-              "Figure 4: The same question answered generatively by Qwen2.5-7B.")
+              "Figure 7: The same question answered generatively by Qwen2.5-7B.")
     add_image(doc, "question_answering/04_qa_declines_when_not_covered.png",
-              "Figure 5: Asked something the material does not cover, the assistant "
+              "Figure 8: Asked something the material does not cover, the assistant "
               "declines instead of guessing.")
     para(doc,
          "Quality is measured differently per backend kind: extractive answers carry the "
@@ -268,7 +318,28 @@ def build():
     doc.add_page_break()
 
     # ---------------- Fine-tuning ----------------
-    para(doc, "4. Fine-tuning (Requirement 8)", style="Heading 1")
+    para(doc, "5. Sub-task: Image Classification", style="Heading 1")
+    para(doc,
+         "Labels a photo of study material - a diagram, a page of handwritten notes, a "
+         "textbook page - so it can be routed to the right sub-task. This is the entry "
+         "point for material that arrives as an image rather than as text.")
+    para(doc,
+         "Three backends. ViT-base runs locally over ImageNet-1k with no key and no "
+         "cost, and the same model is available through the Inference API. A third "
+         "backend uses gpt-4o-mini vision, which is not restricted to a fixed label set.")
+    add_image(doc, "image_classification/01_classify_diagram_local_vit.png",
+              "Figure 9: Classifying a cell diagram with ViT-base running locally.")
+    para(doc,
+         "The comparison is instructive. The ImageNet model can only answer with one of "
+         "its thousand object classes, so shown a page of handwritten notes it reaches "
+         "for the nearest object rather than describing the material. The vision LLM is "
+         "not constrained that way and can answer with study-material terms such as "
+         "'diagram' or 'handwritten notes'. This is the same small-model-versus-large-"
+         "model trade-off documented for question answering, in a different modality.")
+
+    doc.add_page_break()
+
+    para(doc, "6. Fine-tuning (Requirement 8)", style="Heading 1")
     para(doc,
          f"Base model: {ft['base_model']}. Dataset: {ft['dataset']} - SciQ, 11,679 "
          "crowdsourced science exam questions each with a support paragraph. School "
@@ -279,7 +350,7 @@ def build():
          f"on {ft['device'].upper()} in {ft['train_minutes']} minutes, and evaluated on "
          f"{ft['after']['examples']} held-out SciQ test items.")
 
-    para(doc, "4.1 Results", style="Heading 2")
+    para(doc, "6.1 Results", style="Heading 2")
     add_table(
         doc,
         ["Model", "Exact match", "Token F1", "ROUGE-L", "Copy rate"],
@@ -302,7 +373,7 @@ def build():
          f"{ft['before']['copy_rate']}% of its output words come straight from the input, "
          "and its exact match is zero because it never produces a question at all.")
 
-    para(doc, "4.2 Example output", style="Heading 2")
+    para(doc, "6.2 Example output", style="Heading 2")
     samples = list(zip(ft["before"]["samples"], ft["after"]["samples"]))[:3]
     add_table(
         doc,
@@ -312,10 +383,10 @@ def build():
     )
 
     add_image(doc, "practice_questions/02_practice_questions_generated.png",
-              "Figure 6: The fine-tuned model generating practice questions from "
+              "Figure 10: The fine-tuned model generating practice questions from "
               "biology revision notes inside the application.")
 
-    para(doc, "4.3 Why this task rather than question answering", style="Heading 2")
+    para(doc, "6.3 Why this task rather than question answering", style="Heading 2")
     para(doc,
          "Fine-tuning for grounded question answering was tried first and rejected on "
          "evidence. Base t5-small already scores 70.0% exact match and 81.2% token F1 on "
@@ -327,7 +398,7 @@ def build():
     doc.add_page_break()
 
     # ---------------- LLMOps ----------------
-    para(doc, "5. LLMOps and Metrics (Requirement 7)", style="Heading 1")
+    para(doc, "7. LLMOps and Metrics (Requirement 7)", style="Heading 1")
     para(doc,
          "Every model call in the application passes through a track() context manager "
          "in src/metrics.py, which writes one row per invocation to data/metrics_log.csv "
@@ -351,13 +422,13 @@ def build():
         widths=[0.4, 2.0, 3.6],
     )
     add_image(doc, "text_summarisation/05_llmops_metrics_dashboard.png",
-              "Figure 7: The in-application LLMOps dashboard, aggregating every "
+              "Figure 11: The in-application LLMOps dashboard, aggregating every "
               "logged model call.")
 
     doc.add_page_break()
 
     # ---------------- Running ----------------
-    para(doc, "6. Running the Application", style="Heading 1")
+    para(doc, "8. Running the Application", style="Heading 1")
     para(doc, "pip install -r requirements.txt", style="Intense Quote")
     para(doc, "python -m streamlit run app.py -- hf", style="Intense Quote")
     para(doc,
@@ -368,7 +439,7 @@ def build():
          "To reproduce the fine-tuning: python scripts/finetune_qa.py. To reproduce the "
          "summarisation comparison: python scripts/benchmark_summarization.py.")
 
-    para(doc, "7. Limitations and Future Work", style="Heading 1")
+    para(doc, "9. Limitations and Future Work", style="Heading 1")
     for text in [
         "Text generation and image generation are not yet wired into the metrics "
         "layer, so the LLMOps dashboard covers four of the six sub-tasks.",
