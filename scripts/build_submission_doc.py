@@ -170,18 +170,28 @@ def build():
             [3, "Question answering", "NLP",
              "distilbert-base-cased-distilled-squad; Qwen2.5-7B-Instruct", "SLM + LLM"],
             [4, "Image generation", "CV", "gpt-image-1", "LLM"],
-            [5, "Practice question generation", "NLP",
+            [5, "Image classification", "CV",
+             "google/vit-base-patch16-224 (local + Inference API); gpt-4o-mini vision",
+             "SLM + LLM"],
+            [6, "Practice question generation", "NLP",
              "t5-small fine-tuned on SciQ", "SLM (fine-tuned)"],
-            [6, "Image classification", "CV", "google/vit-base-patch16-224", "Planned"],
         ],
         widths=[0.4, 1.6, 0.8, 2.4, 1.0],
     )
-    todo(doc,
-         "«Sub-task 6 (image classification) is a skeleton only - src/image_classification.py "
-         "raises NotImplementedError. Either implement it before submission or remove this "
-         "row and present five sub-tasks, which is what the brief requires.»")
+    para(doc,
+         "Six sub-tasks against the five required. Sub-task 6 is the fine-tuned model "
+         "and also satisfies requirement 8.")
 
-    para(doc, "1.2 Architecture", style="Heading 2")
+    para(doc, "1.2 Shared study material", style="Heading 2")
+    para(doc,
+         "The student's document is uploaded or pasted once, in the Study Material "
+         "section at the top of the application, and question answering, summarisation "
+         "and practice question generation all read from it. This removes the need to "
+         "paste the same notes into three separate boxes and keeps the sub-tasks "
+         "operating on one shared artefact, which is what makes them a workflow rather "
+         "than independent demos.")
+
+    para(doc, "1.3 Architecture", style="Heading 2")
     para(doc,
          "The application is a Streamlit front end over a set of independent Python "
          "modules, one per sub-task, in src/. config.py centralises credentials and the "
@@ -360,8 +370,11 @@ def build():
 
     para(doc, "7. Limitations and Future Work", style="Heading 1")
     for text in [
-        "Image classification is designed but not implemented; the module raises "
-        "NotImplementedError and the application shows a notice in its place.",
+        "Text generation and image generation are not yet wired into the metrics "
+        "layer, so the LLMOps dashboard covers four of the six sub-tasks.",
+        "The local models are CPU-bound. First use of each downloads and loads weights "
+        "- DistilBERT took 106 seconds on this machine - after which calls are "
+        "sub-second to a few seconds.",
         "The fine-tuned question generator reaches 13.3% exact match. It is a "
         "60M-parameter model trained on 1,600 examples for one epoch on CPU; the size and "
         "direction of the improvement is the result, not the absolute score.",
@@ -370,7 +383,6 @@ def build():
         "filtered and another key term is tried instead.",
         "The extractive question answering model selects one span per question and can "
         "select from the wrong section of a long document while reporting high confidence.",
-        "Text generation and image generation are not yet wired into the metrics layer.",
     ]:
         doc.add_paragraph(text, style="List Bullet")
 

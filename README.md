@@ -16,8 +16,59 @@ Designed and developed an interactive API-driven AI application combining NLP an
 | 5 | Image classification | CV | `src/image_classification.py` | ViT-base ImageNet-1k, local + Inference API (SLM) / gpt-4o-mini vision (LLM) | Done |
 | 6 | Practice question generation | NLP | `src/practice_questions.py` | t5-small fine-tuned on SciQ | Done |
 
-All five feed one objective: an AI study assistant that generates study material,
-condenses it for revision, answers questions on it, and works with diagrams.
+All six feed one objective: an AI study assistant that generates study material,
+condenses it for revision, answers questions on it, quizzes the student, and works
+with images of their notes.
+
+### What each sub-task does
+
+**1. Text generation** — `src/text_generation.py`
+Generates study material from a prompt: an explanation of a topic, a worked example,
+a revision paragraph. Uses whichever provider the app was launched with, through
+`create_client(provider)`. This is the entry point of the workflow — the student can
+generate material here and then feed it into everything below.
+
+**2. Image generation** — `src/image_generation.py`
+Produces a supporting diagram or illustration from a prompt, so a topic can be
+revised visually as well as in text. Generated images render in the app and can be
+saved as PNG, JPG or JPEG into `data/`.
+
+**3. Question answering** — `src/question_answering.py`
+Answers questions **from the student's own material**, not from the model's general
+knowledge, and declines when the material doesn't cover the question. Extractive
+backend (DistilBERT) copies a span and cites its source sentence, so it cannot
+hallucinate; generative backends (Qwen2.5-7B, gpt-4o-mini) read better and handle
+answers spread across sentences. Quality is measured as span confidence for
+extractive answers and groundedness for generative ones.
+
+**4. Text summarisation** — `src/summarization.py`
+Condenses long material into five output styles (concise abstract, revision bullets,
+study notes, exam takeaways, plain-language explanation), with an optional focus
+prompt. Documents longer than one model context are handled map-reduce style. Local
+SLM and hosted LLM backends, reported with latency, tokens, cost, compression and
+ROUGE.
+
+**5. Image classification** — `src/image_classification.py`
+Labels a photo of study material — a diagram, a page of handwritten notes, a textbook
+page — so it can be routed to the right sub-task. ViT-base (ImageNet-1k, 1000 object
+classes) locally or through the Inference API; gpt-4o-mini vision as a generative
+alternative that isn't restricted to the ImageNet label set and can answer with
+study-material terms.
+
+**6. Practice question generation (fine-tuned)** — `src/practice_questions.py`
+The fine-tuned model, satisfying requirement 8. Turns notes into exam-style practice
+questions using a **t5-small fine-tuned on SciQ**. Key terms are extracted from the
+material automatically and the model writes a question for each. Runs locally at no
+API cost.
+
+### Shared study material
+
+The document is uploaded or pasted **once**, in the Study Material section at the top
+of the app, and sub-tasks 3, 4 and 6 all read from it — no re-pasting between
+sections. Two sample documents load with one click for demos:
+`data/sample_lecture_notes.txt` (cloud-native, 831 words) and
+`data/sample_biology_notes.txt` (school science, 448 words). Use the biology one for
+practice question generation: the fine-tuned model is trained on science.
 
 ## Setup
 

@@ -1,6 +1,18 @@
 # Demo video — speaker notes
 
-Target length **8–10 minutes**. Timings below are cumulative.
+Target length **11–12 minutes**. Timings below are cumulative.
+
+**Running order** — the six sub-tasks in sequence, matching the order they appear in
+the app, so you scroll straight down the page and never jump around:
+
+1. Text generation
+2. Image generation
+3. Question answering
+4. Text summarisation
+5. Image classification
+6. Practice question generation (the fine-tuned model)
+
+then the LLMOps dashboard and a short limitations close.
 
 Everything in the *Say* lines is factual and checkable against the repo. Nothing here
 overstates what the project does — the parts that don't work are called out
@@ -18,13 +30,21 @@ python -m streamlit run app.py -- hf
 - [ ] `.env` has `HF_API_KEY` set
 - [ ] **Delete `data/metrics_log.csv`** so the LLMOps dashboard starts empty and fills
       up live during the demo — this is the single most convincing moment in the video
-- [ ] Warm the local models first: run one summarisation on DistilBART and one
-      practice-question generation **before recording**. First load downloads ~1.2 GB
-      and takes ~40 s; warm it's ~7 s. Otherwise you have a minute of dead air.
-- [ ] Open `data/sample_lecture_notes.txt` and `data/sample_biology_notes.txt` in
-      tabs ready to copy
+- [ ] **Warm every local model before recording.** In the running app, do one
+      summarisation on DistilBART, one question answer on DistilBERT, one image
+      classification on ViT, and one practice-question generation. Measured cold-load
+      times on this machine: DistilBERT **106 s**, DistilBART ~40 s. Warm they are
+      1–10 s. Skip this and you will have minutes of dead air.
+- [ ] Have a diagram or a photo of handwritten notes ready for image classification
 - [ ] Browser zoom ~110%, close other tabs (the machine pages badly under memory
       pressure and it will show as lag)
+
+**No copy-pasting needed:** the Study Material section at the top has one-click
+buttons for both sample documents, and everything downstream reads from it.
+
+**Backend choice on the day:** for the smoothest video use the **HF Inference API**
+backends (~1–3 s). Switch to the local models only for the deliberate SLM-vs-LLM
+comparison, and only after warming them.
 
 ---
 
@@ -43,7 +63,7 @@ our two categories."
 
 ---
 
-## 0:30 — Architecture and providers (1 min)
+## 0:30 — Architecture and providers (45 s)
 
 **Show:** the sidebar reading `Provider: HF`, then briefly `config.py`.
 
@@ -52,16 +72,86 @@ credentials and exposes a single `create_client(provider)` factory, so no sub-ta
 reads `.env` itself. We made Hugging Face the primary provider so the project isn't
 gated on OpenAI credits."
 
-**Say:** "Summarisation and question answering also let you pick the model per run,
-which is what lets us compare a small local model against a hosted large one without
-restarting anything."
+**Say:** "Most sub-tasks also let you pick the model per run, which is what lets us
+compare a small local model against a hosted large one without restarting anything."
 
 ---
 
-## 1:30 — Text summarisation (2 min)
+## 1:15 — Study Material: load once, use everywhere (30 s)
 
-**Do:** paste `sample_lecture_notes.txt`, style **Revision bullet points**, model
-**HF Qwen2.5-7B**, click Summarise.
+**Do:** click **Cloud-native lecture notes**.
+
+**Say:** "The document is loaded once here. Question answering, summarisation and the
+practice question generator all read from it — you don't paste the same notes into
+three boxes. You can upload a `.txt`/`.md` file, paste directly, or load one of our
+two samples."
+
+**Point out:** the word count under the box, and the same count echoed in each section
+below. That's the shared state working.
+
+---
+
+# The six sub-tasks, in order
+
+## 1:45 — Sub-task 1: Text generation (45 s)
+
+**Do:** prompt it with something a student would actually ask, e.g.
+*"Explain the difference between aerobic and anaerobic respiration for a GCSE student."*
+
+**Say:** "This is the entry point of the workflow. A student generates study material
+on a topic, and everything downstream operates on material like this. It runs through
+whichever provider the app was launched with."
+
+---
+
+## 2:30 — Sub-task 2: Image generation (45 s)
+
+**Do:** prompt e.g. *"A simple labelled diagram of a plant cell."* Generate, then show
+the **Save as PNG** button.
+
+**Say:** "The same study assistant produces the visual side — a supporting diagram for
+the topic being revised. Generated images render in the app and save to `data/` as
+PNG, JPG or JPEG."
+
+> If image generation is unavailable on the day (gpt-image-1 needs a verified OpenAI
+> org and paid credits), say so plainly and show a previously generated image. Do not
+> spend demo time debugging it.
+
+---
+
+## 3:15 — Sub-task 3: Question answering (1.5 min)
+
+No pasting — the section already reads the shared material. Point that out.
+
+**Do:** ask *"Why should latency be reported as percentiles rather than an average?"*
+with **DistilBERT local** selected (warmed beforehand).
+
+**Say:** "This is extractive — it selects a span out of your material and cites the
+sentence it came from, so it physically cannot hallucinate."
+
+**Do:** switch to **Qwen2.5-7B**, same question.
+
+**Say:** "Generative — reads better, handles answers spread across sentences, but it's
+only held to the material by the prompt. So we measure groundedness: the share of the
+answer's content words that appear in the source. When we asked it *what is an error
+budget*, it scored 0.59 because it added correct but unsourced detail. That's the
+metric doing its job."
+
+**Point out:** the metric tile label changes between backends — `Confidence` for the
+extractive model, `Groundedness` for the generative one. Different measurements, not
+one number.
+
+**Do:** ask *"What is the capital of Portugal?"*
+
+**Say:** "And when the material doesn't cover it, it declines instead of guessing.
+For a study assistant that's the behaviour you want."
+
+---
+
+## 4:45 — Sub-task 4: Text summarisation (2 min)
+
+**Do:** style **Revision bullet points**, model **HF Qwen2.5-7B**, click Summarise.
+Same shared document — nothing to re-paste.
 
 **Say while it runs:** "Long documents are handled map-reduce style — split on
 paragraph boundaries, summarise each chunk, then summarise the summaries into the
@@ -88,30 +178,29 @@ one happened rather than pretending both are the same thing."
 
 ---
 
-## 3:30 — Question answering (1.5 min)
+## 6:45 — Sub-task 5: Image classification (1 min)
 
-**Do:** same notes in the QA box. Ask *"Why should latency be reported as percentiles
-rather than an average?"* with **DistilBERT local** selected.
+**Do:** upload a diagram or a photo of handwritten notes. Run **ViT local** first.
 
-**Say:** "This is extractive — it selects a span out of your material and cites the
-sentence it came from, so it physically cannot hallucinate."
+**Say:** "Vision Transformer, ImageNet-1k — a thousand object classes, running locally
+with no key and no cost. It gives us the top labels with their confidence scores."
 
-**Do:** switch to **Qwen2.5-7B**, same question.
+**Do:** switch to **OpenAI gpt-4o-mini vision**, same image.
 
-**Say:** "Generative — reads better, handles answers spread across sentences, but it's
-only held to the material by the prompt. So we measure groundedness: the share of the
-answer's content words that appear in the source. When we asked it *what is an error
-budget*, it scored 0.59 because it added correct but unsourced detail. That's the
-metric doing its job."
+**Say — this is the interesting bit:** "The ImageNet model can only answer with one of
+its thousand object classes, so on a page of handwritten notes it reaches for the
+nearest object — something like *envelope* or *menu*. The generative model isn't
+restricted to a fixed label set, so it can actually say *handwritten notes* or
+*circuit diagram*. It's the same small-model-versus-large-model trade-off we showed in
+question answering, in a different modality."
 
-**Do:** ask *"What is the capital of Portugal?"*
-
-**Say:** "And when the material doesn't cover it, it declines instead of guessing.
-For a study assistant that's the behaviour you want."
+**Say:** "In the study-assistant workflow this is the router: it tells us whether the
+student photographed a diagram or a page of notes, so we know which sub-task to send
+it to."
 
 ---
 
-## 5:00 — Fine-tuning (2.5 min) — *the highest-value section*
+## 7:45 — Sub-task 6: Fine-tuning (2.5 min) — *the highest-value section*
 
 **Say:** "Requirement 8. We fine-tuned t5-small on SciQ — around 11,700 crowdsourced
 science exam questions, each with a support paragraph. School science material, so the
@@ -136,9 +225,12 @@ it produces actual questions."
 - base: *human cloning is one of the inevitable outcomes of modern biotechnology*
 - fine-tuned: *What is a genetically exact copy of an organism developed using techniques associated with biotechnology?*
 
-**Do:** paste `sample_biology_notes.txt` into the Practice Question Generator, generate.
+**Do:** scroll up to **Study Material**, click **Biology revision notes**, then scroll
+to the Practice Question Generator and generate.
 
-**Say:** "And here it is running live in the app on biology revision notes."
+**Say:** "And here it is running live in the app. One click swaps the shared document,
+and every section picks it up. The model is fine-tuned on science, so we're giving it
+science notes."
 
 > **Say this yourself, don't wait to be asked:** "We tried fine-tuning for question
 > answering first and abandoned it on evidence. Base t5-small already scores 70% exact
@@ -150,7 +242,7 @@ it produces actual questions."
 
 ---
 
-## 7:30 — LLMOps (1 min)
+## 10:15 — LLMOps (1 min)
 
 **Do:** open the **LLMOps metrics dashboard** expander.
 
@@ -167,11 +259,11 @@ the tail a user experiences as the app being broken."
 
 ---
 
-## 8:30 — Honesty slide and close (45 s)
+## 11:15 — Honesty slide and close (45 s)
 
-**Say:** "What isn't done: image classification is designed and stubbed but not
-implemented — the module raises `NotImplementedError` and the app says so rather than
-faking it. And text and image generation aren't wired into the metrics layer yet."
+**Say:** "What isn't done: text generation and image generation aren't wired into the
+metrics layer yet, so the dashboard covers four of the six sub-tasks rather than all
+six."
 
 **Say:** "On the fine-tuned model, 13% exact match is low in absolute terms. It's a
 60-million-parameter model, 1,600 examples, one epoch, on CPU. The size and direction
@@ -232,10 +324,12 @@ Adjust to your group; roughly:
 
 | Section | Minutes | Speaker |
 |---|---|---|
-| Opening + architecture | 1.5 | «name» |
-| Summarisation | 2.0 | «name» |
-| Question answering | 1.5 | «name» |
-| Fine-tuning | 2.5 | «name» |
+| Opening, architecture, shared material | 1.75 | «name» |
+| 1. Text generation + 2. Image generation | 1.5 | «name» |
+| 3. Question answering | 1.5 | «name» |
+| 4. Text summarisation | 2.0 | «name» |
+| 5. Image classification | 1.0 | «name» |
+| 6. Fine-tuning | 2.5 | «name» |
 | LLMOps + close | 1.75 | «name» |
 
 The brief marks individual contribution, so **every member should speak to the part

@@ -13,6 +13,7 @@ from src.question_answering import answer_question
 from src.practice_questions import generate_questions, is_available as pq_available
 from src.image_classification import classify_image, is_implemented as ic_implemented
 from src.metrics import summarise_metrics
+from config import DATA_DIR
 
 # Validate and process the command-line provider argument.
 # The provider must be either "openai" or "hf"; based on the selected
@@ -30,6 +31,66 @@ sl.sidebar.write(f"Provider: {provider.upper()}")
 
 # Application title
 sl.title("AI Application - Education")
+
+# ---------------------------------------------------------------------------
+# Shared study material
+#
+# One document, uploaded or pasted once, used by summarisation, question
+# answering and practice question generation. Previously each section carried its
+# own uploader and its own text box, so the same notes had to be pasted three
+# times - and the uploads did not stick, because passing both `value=` and `key=`
+# to a Streamlit widget means session state wins on every rerun and overwrites
+# what was uploaded. Writing to session state *before* the widget is created is
+# the pattern that actually works.
+# ---------------------------------------------------------------------------
+sl.header("Study Material")
+sl.caption(
+    "Upload or paste your notes once here. Summarisation, question answering and "
+    "the practice question generator all read from this."
+)
+
+if "study_material" not in sl.session_state:
+    sl.session_state["study_material"] = ""
+
+SAMPLES = {
+    "Cloud-native lecture notes": DATA_DIR / "sample_lecture_notes.txt",
+    "Biology revision notes": DATA_DIR / "sample_biology_notes.txt",
+}
+
+mat_col1, mat_col2 = sl.columns([2, 1])
+
+with mat_col1:
+    shared_upload = sl.file_uploader(
+        "Upload a document", type=["txt", "md"], key="shared_upload"
+    )
+    if shared_upload is not None:
+        uploaded_text = shared_upload.read().decode("utf-8", errors="ignore")
+        # Only overwrite when a genuinely new file arrives, so edits made in the
+        # text box below are not wiped out on every rerun.
+        if sl.session_state.get("_loaded_file") != shared_upload.name:
+            sl.session_state["study_material"] = uploaded_text
+            sl.session_state["_loaded_file"] = shared_upload.name
+            sl.rerun()
+
+with mat_col2:
+    sl.write("Or load a sample:")
+    for sample_name, sample_path in SAMPLES.items():
+        if sl.button(sample_name, key=f"sample_{sample_name}"):
+            sl.session_state["study_material"] = sample_path.read_text(encoding="utf-8")
+            sl.session_state["_loaded_file"] = sample_name
+            sl.rerun()
+
+study_material = sl.text_area(
+    "Study material:",
+    height=200,
+    placeholder="Paste lecture notes, a textbook section or an article here...",
+    key="study_material",
+)
+
+if study_material.strip():
+    sl.caption(f"{len(study_material.split())} words loaded · used by the sections below")
+else:
+    sl.caption("No material loaded yet.")
 
 #Text Generator 
 sl.header("Text Generator")
@@ -139,20 +200,12 @@ sl.caption(
     "than guessing."
 )
 
-qa_uploaded = sl.file_uploader(
-    "Upload the study material (optional)", type=["txt", "md"], key="qa_upload"
-)
-qa_default = ""
-if qa_uploaded is not None:
-    qa_default = qa_uploaded.read().decode("utf-8", errors="ignore")
+qa_context = sl.session_state.get("study_material", "")
+if qa_context.strip():
+    sl.caption(f"Answering from the shared study material ({len(qa_context.split())} words).")
+else:
+    sl.warning("Load your study material in the **Study Material** section above first.")
 
-qa_context = sl.text_area(
-    "Study material to answer from:",
-    value=qa_default,
-    height=180,
-    placeholder="Paste the lecture notes or textbook section the question is about...",
-    key="qa_context",
-)
 question = sl.text_input("Enter your question", key="qa_question")
 
 qa_backend_label = sl.radio(
@@ -214,21 +267,11 @@ sl.caption(
     "material. Long documents are split and summarised map-reduce style."
 )
 
-uploaded = sl.file_uploader(
-    "Upload a study document (optional)", type=["txt", "md"], key="summary_upload"
-)
-
-default_source = ""
-if uploaded is not None:
-    default_source = uploaded.read().decode("utf-8", errors="ignore")
-
-source_text = sl.text_area(
-    "Text to summarise:",
-    value=default_source,
-    height=220,
-    placeholder="Paste lecture notes, a textbook section or an article here...",
-    key="summary_source",
-)
+source_text = sl.session_state.get("study_material", "")
+if source_text.strip():
+    sl.caption(f"Summarising the shared study material ({len(source_text.split())} words).")
+else:
+    sl.warning("Load your study material in the **Study Material** section above first.")
 
 col_left, col_right = sl.columns(2)
 with col_left:
@@ -388,12 +431,15 @@ if not pq_available():
         "`python scripts/finetune_qa.py --task qgen`"
     )
 else:
-    pq_context = sl.text_area(
-        "Study material:",
-        height=180,
-        placeholder="Paste the notes you want to be quizzed on...",
-        key="pq_context",
-    )
+    pq_context = sl.session_state.get("study_material", "")
+    if pq_context.strip():
+        sl.caption(
+            f"Using the shared study material ({len(pq_context.split())} words). "
+            "The model is fine-tuned on science, so the biology sample gives the "
+            "best results."
+        )
+    else:
+        sl.warning("Load your study material in the **Study Material** section above first.")
     pq_count = sl.slider("How many questions", 3, 10, 5, key="pq_count")
 
     if sl.button("Generate practice questions"):
