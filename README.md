@@ -16,8 +16,87 @@ Designed and developed an interactive API-driven AI application combining NLP an
 | 5 | Image classification | CV | `src/image_classification.py` | ViT-base ImageNet-1k, local + Inference API (SLM) / gpt-4o-mini vision (LLM) | Done |
 | 6 | Practice question generation | NLP | `src/practice_questions.py` | t5-small fine-tuned on SciQ | Done |
 
-All five feed one objective: an AI study assistant that generates study material,
-condenses it for revision, answers questions on it, and works with diagrams.
+All six feed one objective: an AI study assistant that generates study material,
+condenses it for revision, answers questions on it, quizzes the student, and works
+with images of their notes.
+
+### What each sub-task does
+
+**1. Text generation** — `src/text_generation.py`
+Generates study material from a prompt: an explanation of a topic, a worked example,
+a revision paragraph. Uses whichever provider the app was launched with, through
+`create_client(provider)`. **Ticking "Use my study material as context" sends the
+loaded document with the prompt**, so the model expands on the student's own notes
+rather than answering from general knowledge. The document is truncated to 1200 words
+so a long one cannot blow the context window.
+
+**2. Image generation** — `src/image_generation.py`
+Produces a diagram to revise from, so a topic can be worked visually as well as in
+text. Beyond free-text prompting, **"Build a mind map from my study material" writes
+the prompt itself**: it runs the same key-term extractor the practice question
+generator uses, takes the highest-ranked term as the central node and the rest as
+branches. On the biology notes that yields a mind map centred on *cells* with branches
+for respiration, photosynthesis, ATP and energy — drawn from what the notes emphasise
+rather than from a generic request. Generated images render in the app and save as
+PNG, JPG or JPEG into `data/`.
+
+**3. Question answering** — `src/question_answering.py`
+Answers questions **from the student's own material**, not from the model's general
+knowledge, and declines when the material doesn't cover the question. Extractive
+backend (DistilBERT) copies a span and cites its source sentence, so it cannot
+hallucinate; generative backends (Qwen2.5-7B, gpt-4o-mini) read better and handle
+answers spread across sentences. Quality is measured as span confidence for
+extractive answers and groundedness for generative ones.
+
+**4. Text summarisation** — `src/summarization.py`
+Condenses long material into five output styles (concise abstract, revision bullets,
+study notes, exam takeaways, plain-language explanation), with an optional focus
+prompt. Documents longer than one model context are handled map-reduce style. Local
+SLM and hosted LLM backends, reported with latency, tokens, cost, compression and
+ROUGE.
+
+**5. Image classification** — `src/image_classification.py`
+**The entry point for material that arrives as a photo rather than as text.** Labels a
+diagram, a page of handwritten notes or a textbook page so it can be routed to the
+right sub-task — notes to the summariser, a diagram to be described. ViT-base
+(ImageNet-1k, 1000 object classes) locally or through the Inference API; gpt-4o-mini
+vision as a generative alternative that isn't restricted to the ImageNet label set and
+can answer with study-material terms. `data/sample_cell_diagram.png` is a ready-made
+demo input, drawn locally by a script rather than downloaded.
+
+**6. Practice question generation (fine-tuned)** — `src/practice_questions.py`
+The fine-tuned model, satisfying requirement 8. Turns notes into exam-style practice
+questions using a **t5-small fine-tuned on SciQ**. Key terms are extracted from the
+material automatically and the model writes a question for each. Runs locally at no
+API cost.
+
+### Cohesion: one document, six sub-tasks
+
+These aren't six independent demos. The student's document is uploaded or pasted
+**once**, in the Study Material section at the top of the app, and every sub-task
+works from it:
+
+| Sub-task | How it uses the shared document |
+|---|---|
+| Text generation | Optionally sends it as context, so the model expands on the student's own notes |
+| Image generation | Extracts its key terms and writes a mind-map prompt from them |
+| Question answering | Answers strictly from it, and declines when it doesn't cover the question |
+| Text summarisation | Condenses it, in the requested style |
+| Image classification | The entry point when the material arrives as a photo — labels it so it can be routed here |
+| Practice question generation | Generates exam questions from its key terms |
+
+Two sample documents load with one click for demos:
+`data/sample_lecture_notes.txt` (cloud-native, 831 words) and
+`data/sample_biology_notes.txt` (school science, 448 words). Use the biology one for
+practice question generation and the mind map: the fine-tuned model is trained on
+science.
+
+**Why the upload is a single shared box.** Each section used to carry its own uploader
+and text area, so the same notes had to be pasted three times — and upload-only never
+worked, because passing both `value=` and `key=` to a Streamlit widget means session
+state wins on every rerun and silently overwrites what was uploaded. The shared
+section writes to session state *before* the widget is created, which is the pattern
+that holds.
 
 ## Setup
 

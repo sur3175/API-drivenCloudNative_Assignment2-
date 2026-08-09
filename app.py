@@ -11,8 +11,10 @@ from config import create_client
 from src.summarization import summarize, STYLES, DEFAULT_STYLE
 from src.question_answering import answer_question
 from src.practice_questions import generate_questions, is_available as pq_available
+from src.practice_questions import candidate_answers
 from src.image_classification import classify_image, is_implemented as ic_implemented
 from src.metrics import summarise_metrics
+from config import DATA_DIR
 
 # Validate and process the command-line provider argument.
 # The provider must be either "openai" or "hf"; based on the selected
@@ -31,29 +33,150 @@ sl.sidebar.write(f"Provider: {provider.upper()}")
 # Application title
 sl.title("AI Application - Education")
 
-#Text Generator 
+# ---------------------------------------------------------------------------
+# Shared study material
+#
+# One document, uploaded or pasted once, used by summarisation, question
+# answering and practice question generation. Previously each section carried its
+# own uploader and its own text box, so the same notes had to be pasted three
+# times - and the uploads did not stick, because passing both `value=` and `key=`
+# to a Streamlit widget means session state wins on every rerun and overwrites
+# what was uploaded. Writing to session state *before* the widget is created is
+# the pattern that actually works.
+# ---------------------------------------------------------------------------
+sl.header("Study Material")
+sl.caption(
+    "Upload or paste your notes once here. Summarisation, question answering and "
+    "the practice question generator all read from this."
+)
+
+if "study_material" not in sl.session_state:
+    sl.session_state["study_material"] = ""
+
+SAMPLES = {
+    "Cloud-native lecture notes": DATA_DIR / "sample_lecture_notes.txt",
+    "Biology revision notes": DATA_DIR / "sample_biology_notes.txt",
+}
+
+mat_col1, mat_col2 = sl.columns([2, 1])
+
+with mat_col1:
+    shared_upload = sl.file_uploader(
+        "Upload a document", type=["txt", "md"], key="shared_upload"
+    )
+    if shared_upload is not None:
+        uploaded_text = shared_upload.read().decode("utf-8", errors="ignore")
+        # Only overwrite when a genuinely new file arrives, so edits made in the
+        # text box below are not wiped out on every rerun.
+        if sl.session_state.get("_loaded_file") != shared_upload.name:
+            sl.session_state["study_material"] = uploaded_text
+            sl.session_state["_loaded_file"] = shared_upload.name
+            sl.rerun()
+
+with mat_col2:
+    sl.write("Or load a sample:")
+    for sample_name, sample_path in SAMPLES.items():
+        if sl.button(sample_name, key=f"sample_{sample_name}"):
+            sl.session_state["study_material"] = sample_path.read_text(encoding="utf-8")
+            sl.session_state["_loaded_file"] = sample_name
+            sl.rerun()
+
+study_material = sl.text_area(
+    "Study material:",
+    height=200,
+    placeholder="Paste lecture notes, a textbook section or an article here...",
+    key="study_material",
+)
+
+if study_material.strip():
+    sl.caption(f"{len(study_material.split())} words loaded · used by the sections below")
+else:
+    sl.caption("No material loaded yet.")
+
+#Text Generator
 sl.header("Text Generator")
+sl.caption(
+    "Generate study material on a topic, or expand on the notes you loaded above."
+)
 
 prompt = sl.text_area(
-    "Enter your prompt for text generation:",placeholder="" 
+    "Enter your prompt for text generation:", placeholder=""
+)
+
+# Ties the sub-task to the shared document rather than leaving it a standalone
+# prompt box: with this ticked the model is answering about the student's own
+# material, which is what makes it part of one workflow.
+tg_use_material = sl.checkbox(
+    "Use my study material as context",
+    value=bool(study_material.strip()),
+    key="tg_use_material",
+    disabled=not study_material.strip(),
+    help="Sends the document from the Study Material section along with your prompt.",
 )
 
 if sl.button("Generate Text"):
     if not prompt.strip():
         sl.warning("Please enter a prompt")
     else:
+        final_prompt = prompt
+        if tg_use_material and study_material.strip():
+            # Truncated so a long document cannot blow the context window.
+            final_prompt = (
+                "Using the student's study material below, answer this request.\n\n"
+                f"Request: {prompt}\n\n"
+                "Study material:\n---\n"
+                f"{' '.join(study_material.split()[:1200])}\n---"
+            )
         with sl.spinner("Generating text..."):
-        
-            generated_text = generate_text(client, prompt, provider)
+            generated_text = generate_text(client, final_prompt, provider)
         sl.subheader("Generated Text")
         sl.write(generated_text)
+        if tg_use_material and study_material.strip():
+            sl.caption("Generated from your uploaded study material.")
 
 # Image Generator
 sl.header("Image Generator")
+sl.caption(
+    "Generate a diagram to revise from - either from your own prompt, or as a mind "
+    "map built automatically from the study material above."
+)
+
+# Build a mind-map prompt out of the loaded document. The key terms come from the
+# same extractor the practice question generator uses, so the diagram is drawn from
+# what the notes actually emphasise rather than from a generic prompt. This is what
+# connects image generation to the rest of the workflow.
+mindmap_terms = []
+if study_material.strip():
+    try:
+        mindmap_terms = candidate_answers(study_material, 8)
+    except Exception:
+        mindmap_terms = []
+
+ig_from_material = sl.checkbox(
+    "Build a mind map from my study material",
+    value=False,
+    key="ig_from_material",
+    disabled=not mindmap_terms,
+    help="Extracts the key terms from your document and writes the diagram prompt "
+         "for you.",
+)
+
+suggested_prompt = ""
+if ig_from_material and mindmap_terms:
+    central, *branches = mindmap_terms
+    suggested_prompt = (
+        f"A clean, labelled educational mind map diagram about '{central}'. "
+        f"Central node '{central}' with clearly labelled branches for: "
+        f"{', '.join(branches)}. Flat vector illustration, white background, "
+        "high-contrast legible text, no decorative clutter, suitable for revision."
+    )
+    sl.caption(f"Key terms found: {', '.join(mindmap_terms)}")
 
 image_prompt = sl.text_area(
     "Enter your prompt for image generation:",
-    placeholder=""
+    value=suggested_prompt,
+    placeholder="",
+    key=f"image_prompt_{ig_from_material}",
 )
 
 if sl.button("Generate Image"):
@@ -139,20 +262,12 @@ sl.caption(
     "than guessing."
 )
 
-qa_uploaded = sl.file_uploader(
-    "Upload the study material (optional)", type=["txt", "md"], key="qa_upload"
-)
-qa_default = ""
-if qa_uploaded is not None:
-    qa_default = qa_uploaded.read().decode("utf-8", errors="ignore")
+qa_context = sl.session_state.get("study_material", "")
+if qa_context.strip():
+    sl.caption(f"Answering from the shared study material ({len(qa_context.split())} words).")
+else:
+    sl.warning("Load your study material in the **Study Material** section above first.")
 
-qa_context = sl.text_area(
-    "Study material to answer from:",
-    value=qa_default,
-    height=180,
-    placeholder="Paste the lecture notes or textbook section the question is about...",
-    key="qa_context",
-)
 question = sl.text_input("Enter your question", key="qa_question")
 
 qa_backend_label = sl.radio(
@@ -214,21 +329,11 @@ sl.caption(
     "material. Long documents are split and summarised map-reduce style."
 )
 
-uploaded = sl.file_uploader(
-    "Upload a study document (optional)", type=["txt", "md"], key="summary_upload"
-)
-
-default_source = ""
-if uploaded is not None:
-    default_source = uploaded.read().decode("utf-8", errors="ignore")
-
-source_text = sl.text_area(
-    "Text to summarise:",
-    value=default_source,
-    height=220,
-    placeholder="Paste lecture notes, a textbook section or an article here...",
-    key="summary_source",
-)
+source_text = sl.session_state.get("study_material", "")
+if source_text.strip():
+    sl.caption(f"Summarising the shared study material ({len(source_text.split())} words).")
+else:
+    sl.warning("Load your study material in the **Study Material** section above first.")
 
 col_left, col_right = sl.columns(2)
 with col_left:
@@ -388,12 +493,15 @@ if not pq_available():
         "`python scripts/finetune_qa.py --task qgen`"
     )
 else:
-    pq_context = sl.text_area(
-        "Study material:",
-        height=180,
-        placeholder="Paste the notes you want to be quizzed on...",
-        key="pq_context",
-    )
+    pq_context = sl.session_state.get("study_material", "")
+    if pq_context.strip():
+        sl.caption(
+            f"Using the shared study material ({len(pq_context.split())} words). "
+            "The model is fine-tuned on science, so the biology sample gives the "
+            "best results."
+        )
+    else:
+        sl.warning("Load your study material in the **Study Material** section above first.")
     pq_count = sl.slider("How many questions", 3, 10, 5, key="pq_count")
 
     if sl.button("Generate practice questions"):
