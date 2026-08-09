@@ -56,6 +56,7 @@ PRICING = {
     "sshleifer/distilbart-cnn-12-6": {"input": 0.0, "output": 0.0},
     "facebook/bart-large-cnn": {"input": 0.0, "output": 0.0},
     "distilbert-base-cased-distilled-squad": {"input": 0.0, "output": 0.0},
+    "google/vit-base-patch16-224": {"input": 0.0, "output": 0.0},
     # Hugging Face - Inference API
     "Qwen/Qwen2.5-7B-Instruct": {"input": 0.0, "output": 0.0},
 }

@@ -13,7 +13,7 @@ Designed and developed an interactive API-driven AI application combining NLP an
 | 2 | Text summarisation | NLP | `src/summarization.py` | DistilBART local (SLM) / Qwen2.5-7B via HF API (LLM) | Done |
 | 3 | Question answering | NLP | `src/question_answering.py` | DistilBERT SQuAD (SLM) / Qwen2.5-7B via HF API (LLM) | Done |
 | 4 | Image generation | CV | `src/image_generation.py` | gpt-image-1 | Done |
-| 5 | Image classification | CV | `src/image_classification.py` | — | Pending |
+| 5 | Image classification | CV | `src/image_classification.py` | ViT-base ImageNet-1k, local + Inference API (SLM) / gpt-4o-mini vision (LLM) | Done |
 | 6 | Practice question generation | NLP | `src/practice_questions.py` | t5-small fine-tuned on SciQ | Done |
 
 All five feed one objective: an AI study assistant that generates study material,

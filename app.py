@@ -11,7 +11,7 @@ from config import create_client
 from src.summarization import summarize, STYLES, DEFAULT_STYLE
 from src.question_answering import answer_question
 from src.practice_questions import generate_questions, is_available as pq_available
-from src.image_classification import is_implemented as ic_implemented
+from src.image_classification import classify_image, is_implemented as ic_implemented
 from src.metrics import summarise_metrics
 
 # Validate and process the command-line provider argument.
@@ -302,8 +302,14 @@ if sl.button("Summarise"):
                 )
 
 
-#Image Classification - not implemented yet, section reserved
+#Image Classification
 sl.header("Image Classification")
+sl.caption(
+    "Upload a photo of a diagram, a page of handwritten notes, or a textbook page "
+    "and the model labels what it sees, so the material could be routed to the "
+    "right sub-task (e.g. notes to the summariser)."
+)
+
 if not ic_implemented():
     sl.info(
         "Not built yet. The module skeleton and intended design are in "
@@ -311,6 +317,61 @@ if not ic_implemented():
         "`google/vit-base-patch16-224`, local and API backends, wired to the same "
         "metrics layer as the other sub-tasks."
     )
+else:
+    ic_uploaded = sl.file_uploader(
+        "Upload an image", type=["jpg", "jpeg", "png"], key="ic_upload"
+    )
+
+    ic_backend_label = sl.radio(
+        "Model",
+        [
+            "HF ViT-base, local (SLM)",
+            "HF ViT-base, Inference API (SLM via API)",
+            "OpenAI gpt-4o-mini (LLM, vision)",
+        ],
+        key="ic_backend",
+        help="The Hugging Face ViT model is trained on the 1000 ImageNet object "
+             "categories, so it labels things like 'notebook' or 'envelope' - "
+             "accurate, but not study-material-aware. The OpenAI backend reads the "
+             "image freely and can say 'handwritten notes' or 'circuit diagram' "
+             "directly, the same generative-vs-fixed-label trade-off as the QA "
+             "extractive/generative backends above.",
+    )
+    ic_backend = (
+        "hf_local" if ic_backend_label.startswith("HF ViT-base, local")
+        else "hf_api" if ic_backend_label.startswith("HF ViT-base, Inference")
+        else "openai"
+    )
+    ic_top_k = sl.slider("How many labels", 1, 10, 5, key="ic_top_k")
+
+    if ic_uploaded is not None:
+        sl.image(ic_uploaded, width=300)
+
+    if sl.button("Classify image"):
+        if ic_uploaded is None:
+            sl.warning("Please upload an image first.")
+        else:
+            try:
+                with sl.spinner("Classifying..."):
+                    ic_result = classify_image(
+                        ic_uploaded.getvalue(), backend=ic_backend, top_k=ic_top_k
+                    )
+            except ValueError as exc:
+                sl.warning(str(exc))
+            except Exception as exc:
+                sl.error(f"Image classification failed: {exc}")
+            else:
+                sl.subheader("Predicted labels")
+                for item in ic_result["labels"]:
+                    sl.write(f"**{item['label']}** — {item['score']:.2f}")
+
+                sl.markdown("**Metrics for this run**")
+                i1, i2, i3, i4 = sl.columns(4)
+                i1.metric("Latency", f"{ic_result['latency_sec']} s")
+                i2.metric("Tokens", ic_result["total_tokens"])
+                i3.metric("Cost", f"${ic_result['cost_usd']:.5f}")
+                i4.metric("Top-1 confidence", ic_result["confidence"])
+                sl.caption(f"Model: {ic_result['model']} · backend: {ic_backend}")
 
 
 #Practice Question Generator - the fine-tuned model (assignment requirement 8)
